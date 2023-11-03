@@ -7,7 +7,7 @@ from WitMotionSensor import *
 #from imu_ekf import *
 #from buildhat import Motor
 
-URL = 'http://192.168.1.107:8000'
+URL = 'http://192.168.0.56:8000'
 PATH = '/controller/observer/physical/'
 
 # モータ初期化
