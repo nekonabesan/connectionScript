@@ -70,6 +70,17 @@ class BWT901(Serial):
         self.readData()
         return self.accel_x,self.angular_velocity_x,self.angle_x,self.accel_y,self.angular_velocity_y,self.angle_y,self.accel_z,self.angular_velocity_z,self.angle_z
 
+    def getAngleX(self):
+        self.readData()
+        return self.accel_x,self.angular_velocity_x,self.angle_x
+
+    def getAngleY(self):
+        self.readData()
+        return self.accel_y,self.angular_velocity_y,self.angle_y
+
+    def getAngleZ(self):
+        self.readData()
+        return self.accel_z,self.angular_velocity_z,self.angle_z
 
 #if __name__ == "__main__":
 #
