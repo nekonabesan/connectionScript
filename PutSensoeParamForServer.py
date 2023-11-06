@@ -3,31 +3,36 @@ import requests
 import subprocess
 import numpy as np
 import simplejson as json
-from WitMotionSensor import *
+from WitMotionSensorConnection import JY901S
 #from imu_ekf import *
 #from buildhat import Motor
 
 URL = 'http://192.168.0.56:8000'
 PATH = '/controller/observer/physical/'
 
-# モータ初期化
-#motor_a = Motor('A')
-#motor_b = Motor('B')
-#motor_a.release = True
-#motor_b.release = True
 counter = 0
 session_id = 0
 headers = {"Content-Type" : "application/json"}
-# タイマ初期化
-start = time.time()
-obj = BWT901("/dev/ttyUSB0")
+
+obj = JY901S()
+device = obj.getDevice()
+device.serialConfig.portName = "/dev/ttyUSB0"   # Set serial port
+device.serialConfig.baud = 9600                     # Set baud rate
+device.openDevice()                                 # Open serial port
+# Read configuration information
+obj.readConfig(device)
+# Data update event
+device.dataProcessor.onVarChanged.append(obj.onUpdate)
 angle_x = 0
 angle_y = 0
 angle_z = 0
-
+obj.startRecord()
+time.sleep(0.5)
+# タイマ初期化
+start = time.time()
 
 while True:
-    accel_x,angular_velocity_x,angle_x,accel_y,angular_velocity_y,angle_y, accel_z,angular_velocity_z,angle_z = obj.getAngle()
+    accel_x,angular_velocity_x,angle_x,accel_y,angular_velocity_y,angle_y, accel_z,angular_velocity_z,angle_z = obj.getDataAxisAll()
     json_data={
         'session_id': str(session_id)
         ,'counter': counter
@@ -53,8 +58,17 @@ while True:
     counter = int(response['counter']) + 1
     stop_signal = int(response['stop_signal'])
     start = time.time()
+    time.sleep(0.01)
     # 停止コード受信でループを抜ける
     if stop_signal == 1:
+        # センサとのConnectionをClose
+        time.sleep(0.5)
+        obj.endRecord()
+        try:
+            time.sleep(0.5)
+            device.closeDevice()
+        except IOError as e:
+            break
         break
     else:
         continue

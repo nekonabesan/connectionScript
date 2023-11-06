@@ -11,6 +11,7 @@ from RPi import GPIO
 from threading import Event
 from gpiozero import RotaryEncoder, Button
 from gpiozero.pins.pigpio import PiGPIOFactory
+from WitMotionSensorConnection import JY901S
 
 
 URL = 'http://192.168.0.56:8000'
@@ -22,7 +23,7 @@ mode = -1
 headers = {"Content-Type" : "application/json"}
 
 # ロータリーエンコーダのピン設定
-PIN_ROTAR_A1 = 16    # 
+PIN_ROTAR_A1 = 16
 PIN_ROTAR_A2 = 20
 
 #GPIO.setmode(GPIO.BCM)
@@ -77,16 +78,24 @@ class MotorDriver():
             pwm.setDutycycle(self.PWMB, 0)
 
 
+
+# ロータリーエンコーダ初期化
+factory = PiGPIOFactory()
+rotorA = RotaryEncoder(
+        PIN_ROTAR_A1, PIN_ROTAR_A2, wrap=True, max_steps=180, pin_factory=factory
+)
+rotorA.steps = 0
+
+rotorD = RotaryEncoder(
+        PIN_ROTAR_D1, PIN_ROTAR_D2, wrap=True, max_steps=180, pin_factory=factory
+)
+rotorD.steps = 0
 #print("this is a motor driver test code")
 Motor = MotorDriver()
 # 25000000.0
 pwm.setPWMFreq(25000000.0)
 start = time.time()
-beforeCount = 0
-rt_counter = 0  #エンコーダー積算
-times = 0    #エンコーダークリック回数
-AstateOld = 1
-BstateOld = 1
+
 
 # -------------------------------------------------------------------------------- #
 # PIN Factory エラー発生時の対応
