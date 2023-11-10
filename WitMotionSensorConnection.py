@@ -23,8 +23,8 @@ class JY901S:
     welcome = """
     Welcome to the Wit-Motoin sample program
     """
-    _writeF = None                    #写文件  Write file
-    _IsWriteF = False                 #写文件标识    Write file identification
+    _writeF = None
+    _IsWriteF = False
 
     accX = 0.0
     accY = 0.0
@@ -124,6 +124,7 @@ class JY901S:
     def getYDataAxisY(self):
         return self.accY,self.gyroY,self.angleY
 
+    '''
     def startRecord(self):
         """
         Start recording data
@@ -156,6 +157,6 @@ class JY901S:
         self._IsWriteF = False             # Tag cannot write the identity
         self._writeF.close()               #Close file
         print("")
-
+    '''
 
     

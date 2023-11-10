@@ -13,7 +13,7 @@ if __name__ == '__main__':
     device.dataProcessor.onVarChanged.append(obj.onUpdate)
 
     # Start recording data
-    obj.startRecord()                                       
+    obj.startRecord()
     
     while True:
         accY,gyroY,angleY = obj.getYData()

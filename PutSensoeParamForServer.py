@@ -26,7 +26,7 @@ device.dataProcessor.onVarChanged.append(obj.onUpdate)
 angle_x = 0
 angle_y = 0
 angle_z = 0
-obj.startRecord()
+
 time.sleep(0.5)
 # タイマ初期化
 start = time.time()
@@ -47,6 +47,7 @@ while True:
         ,'Rz_degrees': angle_z
         ,'delta': time.time() - start
     }
+    start = time.time()
     # 制御器へRequest
     response = requests.post(URL + PATH, headers=headers, data = json.dumps(json_data))
     # Responseをキャスト
@@ -57,13 +58,12 @@ while True:
     session_id = response['session_id']
     counter = int(response['counter']) + 1
     stop_signal = int(response['stop_signal'])
-    start = time.time()
+
     time.sleep(0.01)
     # 停止コード受信でループを抜ける
     if stop_signal == 1:
         # センサとのConnectionをClose
         time.sleep(0.5)
-        obj.endRecord()
         try:
             time.sleep(0.5)
             device.closeDevice()

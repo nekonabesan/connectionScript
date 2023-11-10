@@ -128,8 +128,9 @@ while True:
     counter = int(response['counter']) + 1
     mode = int(response['mode'])
     stop_signal = int(response['stop_signal'])
+    
+    time.sleep(0.08)
     start = time.time()
-    time.sleep(0.05)
     # 
     if counter == 1:
         Motor.MotorRun(0, 'forward', SPEED)

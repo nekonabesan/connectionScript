@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import os
 import time
 import math
 import numpy as np
@@ -10,7 +11,10 @@ from gpiozero import RotaryEncoder, Button
 from gpiozero.pins.pigpio import PiGPIOFactory
 from WitMotionSensorConnection import JY901S
 
+U_MAX = 100
+U_MIN = 0
 SPEED = 0
+OFFSET = -88
 
 # ロータリーエンコーダのピン設定
 PIN_ROTAR_A1 = 16
@@ -80,13 +84,18 @@ rotorD.steps = 0
 
 beforeCountA = 0
 beforeCountD = 0
-rt_a_counter = 0  #エンコーダー積算
-rt_d_counter = 0  #エンコーダー積算
+rt_a_counter = 0
+rt_d_counter = 0
+obj = None
+device = None
 
 # 角度センサ初期化
+devicePath = "/dev/ttyUSB0"
+if os.path.exists("/dev/ttyUSB1"):
+    devicePath = "/dev/ttyUSB1"
 obj = JY901S()
 device = obj.getDevice()
-device.serialConfig.portName = "/dev/ttyUSB0"   # Set serial port
+device.serialConfig.portName = devicePath   # Set serial port
 device.serialConfig.baud = 9600                     # Set baud rate
 device.openDevice()                                 # Open serial port
 # Read configuration information
@@ -100,17 +109,14 @@ start = time.time()
 # 制御パラメータ設定
 am = Decimal(str(17.015716113746162))
 bm = Decimal(str(10.011633801736519))
-alpha = Decimal(str(899.9999999999998))
-beta = Decimal(str(6.0))
-gumma = Decimal(str(-51.98628434185563))
-delta = Decimal(str(30.587466202679973))
-k1 = Decimal(str(94.88572135))
-k2 = Decimal(str(10.48930069))
-k3 = Decimal(str(0.31622777))
-k4 = Decimal(str(3.5038014))
-
-# Start recording data
-obj.startRecord()
+alpha = Decimal(str(100.0))
+beta = Decimal(str(4.0))
+gumma = Decimal(str(8.823137953779899))
+delta = Decimal(str(-5.520524167632318))
+k1 = Decimal(str(211.99102759))
+k2 = Decimal(str(32.90440824))
+k3 = Decimal(str(0.28867513))
+k4 = Decimal(str(10.72842288))
 
 direction = 0
 Motor.MotorRun(0, Dir[direction], SPEED)
@@ -121,41 +127,72 @@ while True:
     #accel_x,angular_velocity_x,angle_x,accel_y,angular_velocity_y,angle_y, accel_z,angular_velocity_z,angle_z = obj.getDataAxisAll()
     accel_y,angular_velocity_y,angle_y = obj.getYDataAxisY()
     # Decimalにキャスト
-    accel_y = Decimal(str(accel_y))
-    angular_velocity_y = Decimal(str(angular_velocity_y))
-    angle_y = Decimal(str(angle_y))
+    accel_y = Decimal(str(math.floor(accel_y)))
+    angular_velocity_y = Decimal(str(math.floor(angular_velocity_y)))
+    angle_y = Decimal(str(math.floor(angle_y)))
     rt_a_counter = rotorA.steps
     rt_d_counter = rotorD.steps
+    motor_a_angle = angle_y - rt_a_counter
+    motor_d_angle = angle_y - rt_d_counter
+    delta_theta_a = Decimal(abs(abs(rt_a_counter) - abs(beforeCountA)))
+    delta_theta_d = Decimal(abs(abs(rt_d_counter) - abs(beforeCountD)))
+    delta_time = Decimal(time.time() - start)
+    start = time.time()
+
+    velocity_a = Decimal(delta_theta_a/delta_time)
+    if delta_theta_a == 0:
+        Motor.MotorRun(0, Dir[0], 0)
+        velocity_a = Decimal(0.0)
+        
+    velocity_d = Decimal(delta_theta_d/delta_time)
+    if delta_theta_d == 0:
+        Motor.MotorRun(1, Dir[0], 0)
+        velocity_d = Decimal(0.0)    
 
     diff_a_countor = abs(abs(beforeCountA) - abs(rt_a_counter))
     diff_d_countor = abs(abs(beforeCountD) - abs(rt_d_counter))
-    #print(Decimal(str(time.time() - start)))
 
-    # U(t)を導出
-    u = round(abs(- (angle_y * k1) + (angular_velocity_y * k2) - (0 * k3) - (accel_y * k4)))
-    
-    if u < 0:
+    if angle_y < 0:
         direction = 1
+        velocity_a = velocity_a * (-1)
+        velocity_d = velocity_d * (-1)
     else:
         direction = 0
 
+    # U(t)を導出
+    ua = round(abs((angle_y * k1) + (angular_velocity_y * k2) + (motor_a_angle * k3) + (velocity_a * k4)))
+    ud = round(abs((angle_y * k1) + (angular_velocity_y * k2) + (motor_d_angle * k3) + (velocity_d * k4)))
     
-    
-    
-    
+    if ua != U_MIN:
+        ua = 20 * math.log10(ua)
+    if ud != U_MIN:
+        ud = 20 * math.log10(ud)
+
+    if ua > U_MAX:
+        ua = U_MAX
+    if ud > U_MAX:
+        ud = U_MAX
+
+    if delta_theta_a == 0:
+        ua = 0
+    if delta_theta_d == 0:
+        ud = 0   
 
     print("accel_y  : " + str(accel_y) 
                 + "\t angular_velocity_y  : " + str(angular_velocity_y) 
                 + "\t angle_y  : " + str(angle_y)
-                + "\t u(t)  : " + str(u)
-                + "\t delta : " + str(time.time() - start))
+                + "\t motor velocity : " + str(velocity_a)
+                + "\t motor angle : " + str(angle_y - rt_a_counter)
+                + "\t motor delta_theta : " + str(delta_theta_a)
+                + "\t u(t)  : " + str(ua)
+                + "\t delta : " + str(delta_time))
 
     # deleta theata計測用
     beforeCountA = rt_a_counter
     beforeCountD = rt_d_counter
-    #pwm_value = 0
+
     # モータへ電圧を印加
-    Motor.MotorRun(0, Dir[direction], u)
-    Motor.MotorRun(1, Dir[direction], u)
-    start = time.time()
+    Motor.MotorRun(0, Dir[direction], ua)
+    Motor.MotorRun(1, Dir[direction], ua)
+    #time.sleep(0.005)
     
