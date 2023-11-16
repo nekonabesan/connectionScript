@@ -49,9 +49,9 @@ class PCA9685:
   def setPWMFreq(self, freq):
     "Sets the PWM frequency"
     prescaleval = 25000000.0    # 25MHz
-    prescaleval = prescaleval / 4096.0       # 12-bit
-    prescaleval = prescaleval / float(freq)
-    prescaleval = prescaleval - 1.0
+    prescaleval /= 4096.0       # 12-bit
+    prescaleval /= float(freq)
+    prescaleval -= 1.0
     if (self.debug):
       print("Setting PWM frequency to %d Hz" % freq)
       print("Estimated pre-scale: %d" % prescaleval)
