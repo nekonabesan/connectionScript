@@ -8,15 +8,17 @@ import numpy as np
 from decimal import *
 from threading import Event
 from sense_hat import SenseHat
+from ConnectionSenseHat import *
 from modules.PCA9685 import PCA9685
 from gpiozero import RotaryEncoder, Button
 from gpiozero.pins.pigpio import PiGPIOFactory
 from WitMotionSensorConnection import JY901S
 
+
 U_MAX = 100
 U_MIN = 0
 SPEED = 0
-OFFSET = 37
+OFFSET = 35
 FWD = 0
 BCK = 1
 
@@ -114,7 +116,7 @@ rt_a_counter = 0
 rt_d_counter = 0
 obj = None
 device = None
-
+'''
 # 角度センサ初期化
 devicePath = "/dev/ttyUSB0"
 if os.path.exists("/dev/ttyUSB1"):
@@ -128,6 +130,7 @@ device.openDevice()                                 # Open serial port
 obj.readConfig(device)
 # Data update event
 device.dataProcessor.onVarChanged.append(obj.onUpdate)
+'''
 prev_angle_y = 0
 
 # sense hatを初期化
@@ -140,6 +143,17 @@ for i in range(360):
     else:
         angle.append(i - 360)
 
+### Thread Test
+th_angle_y = 0
+def readSenseHatAngle():
+    global th_angle_y
+    while True:
+        orientation = sense.get_orientation_degrees()
+        #print(orientation['pitch'])
+        th_angle_y = angle[round(orientation['pitch']) - OFFSET]
+th = threading.Thread(target=readSenseHatAngle, args=(), name='th')
+th.start()
+
 # 積算開始
 start = time.time()
 
@@ -150,10 +164,10 @@ alpha = Decimal(str(100.0))
 beta = Decimal(str(4.0))
 gumma = Decimal(str(8.823137953779899))
 delta = Decimal(str(-5.520524167632318))
-k1 = Decimal(str(146.58268555))
-k2 = Decimal(str(20.24669471))
-k3 = Decimal(str(1.0))
-k4 = Decimal(str(3.20013836))
+k1 = Decimal(str(338.05839545))
+k2 = Decimal(str(46.78625234))
+k3 = Decimal(str(10.95445115))
+k4 = Decimal(str(7.6766376))
 
 direction_a = 0
 direction_d = 0
@@ -164,39 +178,46 @@ getcontext().prec = 28
 while True:
     #accel_x,angular_velocity_x,angle_x,accel_y,angular_velocity_y,angle_y, accel_z,angular_velocity_z,angle_z = obj.getDataAxisAll()
     #accel_y,angular_velocity_y,angle_y = obj.getYDataAxisY()
-    orientation = sense.get_orientation_degrees()
-    angle_y = angle[round(orientation['pitch']) - OFFSET]
+    #orientation = sense.get_orientation_degrees()
+    #angle_x,angle_y,angle_z = sense.getAngle()
+    #angle_y = angle[round(angle_y) - OFFSET]
     # Decimalにキャスト
     #angular_velocity_y = Decimal(angular_velocity_y)
-    angle_y = Decimal(str(angle_y))
+    angle_y = Decimal(str(th_angle_y))
     delta_angle_y = Decimal(angle_y - prev_angle_y)
     rt_a_counter = rotorA.steps
     rt_d_counter = rotorD.steps
+    # １ステップ前からのモータ回転角度
     delta_theta_a = Decimal(abs(abs(rt_a_counter) - abs(beforeCountA)))
     delta_theta_d = Decimal(abs(abs(rt_d_counter) - abs(beforeCountD)))
-    motor_a_angle = abs(abs(delta_angle_y) - abs(delta_theta_a))
-    motor_d_angle = abs(abs(delta_angle_y) - abs(delta_theta_d))
-    if delta_theta_a < delta_angle_y:
-        motor_a_angle = -motor_a_angle
-    if delta_theta_d < delta_angle_y:
-        motor_d_angle = -motor_d_angle
+    if rotation_a == BCK:
+        delta_theta_a = -delta_theta_a
+    if rotation_d == BCK:
+        delta_theta_d = -delta_theta_d
+    # motorの振子に対する角度
+    if np.sign(delta_theta_a) == np.sign(delta_angle_y):
+        motor_a_angle = delta_theta_a - delta_angle_y
+    else:
+        motor_a_angle = delta_angle_y - delta_theta_a
+    if np.sign(delta_theta_d) == np.sign(delta_angle_y):
+        motor_d_angle = delta_theta_d - delta_angle_y
+    else:
+        motor_d_angle = delta_angle_y - delta_theta_d
     delta_time = Decimal(time.time() - start)
     start = time.time()
     if delta_angle_y == 0:
         angular_velocity_y = Decimal(0)
     else:
         angular_velocity_y = Decimal(delta_angle_y/delta_time)
+    # モータの角速度
     velocity_a = Decimal(delta_theta_a/delta_time)
     velocity_d = Decimal(delta_theta_d/delta_time)
-    #if rotation_a == BCK:
-    #    velocity_a = -velocity_a
-    #if rotation_d == BCK:
-    #    velocity_d = -velocity_d
 
     # U(t)を導出
     ua = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_a_angle * k3) + (velocity_a * k4))
     ud = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_d_angle * k3) + (velocity_d * k4))
 
+    # 回転方向を取得
     if ua < 0:
         direction_a = BCK
     else:
@@ -212,16 +233,17 @@ while True:
 
     if ua != U_MIN:
         #ua = round(20 * math.log10(ua))
-        ua = round(Decimal(0.04) * ua)
+        ua = round(Decimal(0.02) * ua)
     if ud != U_MIN:
         #ud = round(20 * math.log10(ud))
-        ud = round(Decimal(0.04) * ud)
+        ud = round(Decimal(0.02) * ud)
 
     if ua > U_MAX:
         ua = U_MAX
     if ud > U_MAX:
         ud = U_MAX
     
+
     print("angle_y  : " + str(angle_y)
                 + "\tangular_velocity_y  : " + str(angular_velocity_y) 
                 + "\t motor angle : " + str(motor_a_angle)
@@ -230,7 +252,7 @@ while True:
                 + "\t direction : " + Direction[direction_a]
                 + "\t u(t)  : " + str(ua)
                 + "\t delta : " + str(delta_time))
-    
+
     # deleta theata計測用
     beforeCountA = rt_a_counter
     beforeCountD = rt_d_counter
@@ -239,5 +261,5 @@ while True:
     # モータへ電圧を印加
     Motor.MotorRun(0, Direction[direction_a], ua)
     Motor.MotorRun(1, Direction[direction_d], ua)
-    #time.sleep(0.005)
+    time.sleep(0.002)
     
