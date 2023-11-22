@@ -16,7 +16,7 @@ from gpiozero.pins.pigpio import PiGPIOFactory
 U_MAX = 100
 U_MIN = 0
 SPEED = 0
-OFFSET = 35
+OFFSET = 34
 FWD = 0
 BCK = 1
 
@@ -119,10 +119,14 @@ def request_controler(th_angle_y):
     pwm.setPWMFreq(50000000.0)
 
     # 制御パラメータ設定
-    k1 = Decimal(str(178.35900414))
-    k2 = Decimal(str(24.6536052))
-    k3 = Decimal(str(3.7106889))
-    k4 = Decimal(str(4.02940645))
+    #k1 = Decimal(str(118.5632609))
+    #k2 = Decimal(str(13.84998954))
+    #k3 = Decimal(str(1.00141338))
+    #k4 = Decimal(str(3.22181738))
+    k1 = Decimal(str(190.88462467))
+    k2 = Decimal(str(28.10690385))
+    k3 = Decimal(str(4.06696132))
+    k4 = Decimal(str(4.60538317))
 
     # モータ初期化
     direction_a = 0
@@ -145,6 +149,9 @@ def request_controler(th_angle_y):
         if rotation_d == BCK:
             delta_theta_d = -delta_theta_d
         # motorの振子に対する角度
+        motor_a_angle = delta_theta_a - delta_angle_y
+        motor_d_angle = delta_theta_d - delta_angle_y
+        '''
         if np.sign(delta_theta_a) == np.sign(delta_angle_y):
             motor_a_angle = delta_theta_a - delta_angle_y
         else:
@@ -153,6 +160,7 @@ def request_controler(th_angle_y):
             motor_d_angle = delta_theta_d - delta_angle_y
         else:
             motor_d_angle = delta_angle_y - delta_theta_d
+        '''
         delta_time = Decimal(time.time() - start)
         start = time.time()
         # 振子の角速度
