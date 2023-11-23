@@ -29,7 +29,7 @@ PIN_ROTAR_D1 = 22
 PIN_ROTAR_D2 = 23
 
 URL = 'http://192.168.0.56:8000'
-PATH = '/controller/feedback/optimal_regulator/'
+PATH = '/controller/feedback/v1/optimal_regulator/'
 
 # ロータリーエンコーダ初期化
 rotation_a = FWD
@@ -51,22 +51,6 @@ def rotated_counter_clockwise_d():
     global rotation_d
     rotation_d = FWD
 
-factory = PiGPIOFactory()
-rotary_encoder_a = RotaryEncoder(
-        PIN_ROTAR_A1, PIN_ROTAR_A2, wrap=True, max_steps=180, pin_factory=factory
-)
-rotary_encoder_a.steps = 0
-rotary_encoder_a.when_rotated_clockwise = rotated_clockwise_a
-rotary_encoder_a.when_rotated_counter_clockwise = rotated_counter_clockwise_a
-
-rotary_encoder_d = RotaryEncoder(
-        PIN_ROTAR_D1, PIN_ROTAR_D2, wrap=True, max_steps=180, pin_factory=factory
-)
-rotary_encoder_d.steps = 0
-rotary_encoder_d.when_rotated_clockwise = rotated_clockwise_d
-rotary_encoder_d.when_rotated_counter_clockwise = rotated_counter_clockwise_d
-
-
 # sense hatを初期化
 sense = SenseHat()
 angle = []
@@ -87,7 +71,22 @@ def read_sense_hat_angle(th_angle_y):
 
 getcontext().prec = 28
 def request_controler(th_angle_y):
-    global rotation_a,rotation_d,rotary_encoder_a,rotary_encoder_d
+    global rotation_a,rotation_d
+
+    factory = PiGPIOFactory()
+    rotary_encoder_a = RotaryEncoder(
+            PIN_ROTAR_A1, PIN_ROTAR_A2, wrap=True, max_steps=180, pin_factory=factory
+    )
+    rotary_encoder_a.steps = 0
+    rotary_encoder_a.when_rotated_clockwise = rotated_clockwise_a
+    rotary_encoder_a.when_rotated_counter_clockwise = rotated_counter_clockwise_a
+
+    rotary_encoder_d = RotaryEncoder(
+            PIN_ROTAR_D1, PIN_ROTAR_D2, wrap=True, max_steps=180, pin_factory=factory
+    )
+    rotary_encoder_d.steps = 0
+    rotary_encoder_d.when_rotated_clockwise = rotated_clockwise_d
+    rotary_encoder_d.when_rotated_counter_clockwise = rotated_counter_clockwise_d
 
     counter = 0
     session_id = 0

@@ -45,21 +45,6 @@ def rotated_counter_clockwise_d():
     global rotation_d
     rotation_d = FWD
 
-factory = PiGPIOFactory()
-rotary_encoder_a = RotaryEncoder(
-        PIN_ROTAR_A1, PIN_ROTAR_A2, wrap=True, max_steps=180, pin_factory=factory
-)
-rotary_encoder_a.steps = 0
-rotary_encoder_a.when_rotated_clockwise = rotated_clockwise_a
-rotary_encoder_a.when_rotated_counter_clockwise = rotated_counter_clockwise_a
-
-rotary_encoder_d = RotaryEncoder(
-        PIN_ROTAR_D1, PIN_ROTAR_D2, wrap=True, max_steps=180, pin_factory=factory
-)
-rotary_encoder_d.steps = 0
-rotary_encoder_d.when_rotated_clockwise = rotated_clockwise_d
-rotary_encoder_d.when_rotated_counter_clockwise = rotated_counter_clockwise_d
-
 '''
 obj = None
 device = None
@@ -95,9 +80,26 @@ def read_sense_hat_angle(th_angle_y):
         orientation = sense.get_orientation_degrees()
         th_angle_y.value = angle[round(orientation['pitch']) - OFFSET]
 
+# 
 getcontext().prec = 28
 def request_controler(th_angle_y):
-    global rotation_a,rotation_d,rotary_encoder_a,rotary_encoder_d
+    global rotation_a,rotation_d
+
+    factory = PiGPIOFactory()
+    rotary_encoder_a = RotaryEncoder(
+            PIN_ROTAR_A1, PIN_ROTAR_A2, wrap=True, max_steps=180, pin_factory=factory
+    )
+    rotary_encoder_a.steps = 0
+    rotary_encoder_a.when_rotated_clockwise = rotated_clockwise_a
+    rotary_encoder_a.when_rotated_counter_clockwise = rotated_counter_clockwise_a
+
+    rotary_encoder_d = RotaryEncoder(
+            PIN_ROTAR_D1, PIN_ROTAR_D2, wrap=True, max_steps=180, pin_factory=factory
+    )
+    rotary_encoder_d.steps = 0
+    rotary_encoder_d.when_rotated_clockwise = rotated_clockwise_d
+    rotary_encoder_d.when_rotated_counter_clockwise = rotated_counter_clockwise_d
+
     # 積算開始
     start = time.time()
 
@@ -123,10 +125,10 @@ def request_controler(th_angle_y):
     #k2 = Decimal(str(13.84998954))
     #k3 = Decimal(str(1.00141338))
     #k4 = Decimal(str(3.22181738))
-    k1 = Decimal(str(190.88462467))
-    k2 = Decimal(str(28.10690385))
-    k3 = Decimal(str(4.06696132))
-    k4 = Decimal(str(4.60538317))
+    k1 = Decimal(str(188.29409369))
+    k2 = Decimal(str(27.73972618))
+    k3 = Decimal(str(3.10103117))
+    k4 = Decimal(str(4.3792017))
 
     # モータ初期化
     direction_a = 0
