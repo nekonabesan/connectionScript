@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
 import time
+import subprocess
+import concurrent.futures
 import numpy as np
 from decimal import *
 from threading import Event
@@ -63,7 +65,7 @@ obj.readConfig(device)
 # Data update event
 device.dataProcessor.onVarChanged.append(obj.onUpdate)
 '''
-
+'''
 # sense hatを初期化
 sense = SenseHat()
 angle = []
@@ -73,13 +75,16 @@ for i in range(360):
         angle.append(i)
     else:
         angle.append(i - 360)
-
+'''
 # sense hatの指示値読み取りをスレッド化
 def read_sense_hat_angle(th_angle_y):
-    global angle
     while True:
-        orientation = sense.get_orientation_degrees()
-        th_angle_y.value = angle[int(round(orientation['pitch'])) - OFFSET]
+        angle_y = subprocess.run("cat /opt/angle_y", encoding='utf-8', stdout=subprocess.PIPE, shell=True)
+        angle_y = str(angle_y.stdout)
+        if angle_y == '' or angle_y == None:
+            continue
+        else:
+            th_angle_y.value = int(angle_y)
 
 getcontext().prec = 28
 def request_controler(th_angle_y):
@@ -219,7 +224,7 @@ def request_controler(th_angle_y):
 
 if __name__ == "__main__":
     th_angle_y = Value('i', 0)
-    p1 = Process(target=read_sense_hat_angle, args=[th_angle_y])
-    p2 = Process(target=request_controler, args=[th_angle_y])
+    p1 = Process(target=request_controler, args=[th_angle_y])
+    p2 = Process(target=read_sense_hat_angle, args=[th_angle_y])
     p1.start()
     p2.start()

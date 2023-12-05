@@ -1,0 +1,11 @@
+[Unit]
+Description=PythonDaemon
+
+[Service]
+ExecStart=/opt/read_sense_hat_angle_y.py
+Restart=always
+Type=forking
+PIDFile=/var/run/read_sense_hat_angle_y.pid
+
+[Install]
+WantedBy=multi-user.target
