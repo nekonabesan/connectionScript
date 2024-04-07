@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import os
 import time
 import numpy as np
 from decimal import *
@@ -11,12 +12,13 @@ from modules.PCA9685 import PCA9685
 from multiprocessing import Value, Array, Process
 from gpiozero import RotaryEncoder, Button
 from gpiozero.pins.pigpio import PiGPIOFactory
+from WitMotionSensor import *
 #from WitMotionSensorConnection import JY901S
 
 U_MAX = 100
 U_MIN = 0
 SPEED = 0
-OFFSET = 34
+OFFSET = 38
 FWD = 0
 BCK = 1
 
@@ -45,24 +47,6 @@ def rotated_counter_clockwise_d():
     global rotation_d
     rotation_d = FWD
 
-'''
-obj = None
-device = None
-# WitMotion角度センサ初期化
-devicePath = "/dev/ttyUSB0"
-if os.path.exists("/dev/ttyUSB1"):
-    devicePath = "/dev/ttyUSB1"
-obj = JY901S()
-device = obj.getDevice()
-device.serialConfig.portName = devicePath   # Set serial port
-device.serialConfig.baud = 9600                     # Set baud rate
-device.openDevice()                                 # Open serial port
-# Read configuration information
-obj.readConfig(device)
-# Data update event
-device.dataProcessor.onVarChanged.append(obj.onUpdate)
-'''
-
 # sense hatを初期化
 sense = SenseHat()
 angle = []
@@ -79,6 +63,22 @@ def read_sense_hat_angle(th_angle_y):
     while True:
         orientation = sense.get_orientation_degrees()
         th_angle_y.value = angle[round(orientation['pitch']) - OFFSET]
+
+# wit motion
+def read_wm_motion_angle(th_angle_y):
+    global angle
+    accel_y = None
+    angular_velocity_y = None
+    angle_y = None
+    while True:
+        devicePath = "/dev/ttyUSB0"
+        if os.path.exists("/dev/ttyUSB1"):
+            devicePath = "/dev/ttyUSB1"
+        wm_sensor =  BWT901(devicePath)
+        wm_sensor.readData()
+        accel_y,angular_velocity_y,angle_y = wm_sensor.getAngleY()
+        #print(round(float(angle_y)))
+        th_angle_y.value = angle[int(round(float(angle_y))) - 1]
 
 # 
 getcontext().prec = 28
@@ -121,14 +121,10 @@ def request_controler(th_angle_y):
     pwm.setPWMFreq(50000000.0)
 
     # 制御パラメータ設定
-    #k1 = Decimal(str(118.5632609))
-    #k2 = Decimal(str(13.84998954))
-    #k3 = Decimal(str(1.00141338))
-    #k4 = Decimal(str(3.22181738))
-    k1 = Decimal(str(188.29409369))
-    k2 = Decimal(str(27.73972618))
-    k3 = Decimal(str(3.10103117))
-    k4 = Decimal(str(4.3792017))
+    k1 = Decimal(str(525.58004077))
+    k2 = Decimal(str(33.12691412))
+    k3 = Decimal(str(3.16227766))
+    k4 = Decimal(str(3.68111972))
 
     # モータ初期化
     direction_a = 0
@@ -153,16 +149,7 @@ def request_controler(th_angle_y):
         # motorの振子に対する角度
         motor_a_angle = delta_theta_a - delta_angle_y
         motor_d_angle = delta_theta_d - delta_angle_y
-        '''
-        if np.sign(delta_theta_a) == np.sign(delta_angle_y):
-            motor_a_angle = delta_theta_a - delta_angle_y
-        else:
-            motor_a_angle = delta_angle_y - delta_theta_a
-        if np.sign(delta_theta_d) == np.sign(delta_angle_y):
-            motor_d_angle = delta_theta_d - delta_angle_y
-        else:
-            motor_d_angle = delta_angle_y - delta_theta_d
-        '''
+
         delta_time = Decimal(time.time() - start)
         start = time.time()
         # 振子の角速度
@@ -211,7 +198,7 @@ def request_controler(th_angle_y):
                     + "\t direction : " + direction[direction_a]
                     + "\t u(t)  : " + str(ua)
                     + "\t delta : " + str(delta_time))
-
+        
         # deleta theata計測用
         before_count_a = rt_a_counter
         before_count_d = rt_d_counter
@@ -226,6 +213,7 @@ def request_controler(th_angle_y):
 if __name__ == "__main__":
     th_angle_y = Value('i', 0)
     p1 = Process(target=read_sense_hat_angle, args=[th_angle_y])
+    #p1 = Process(target=read_wm_motion_angle, args=[th_angle_y])
     p2 = Process(target=request_controler, args=[th_angle_y])
     p1.start()
     p2.start()
