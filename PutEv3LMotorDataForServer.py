@@ -11,7 +11,7 @@ from threading import Event
 from gpiozero import RotaryEncoder, Button
 from gpiozero.pins.pigpio import PiGPIOFactory
 
-SPEED = 100
+SPEED = 90
 # APIサーバ
 URL = 'http://192.168.0.56:8000'
 PATH = '/controller/observer/send/'
@@ -24,8 +24,8 @@ headers = {"Content-Type" : "application/json"}
 # ロータリーエンコーダのピン設定
 PIN_ROTAR_A1 = 16
 PIN_ROTAR_A2 = 20
-PIN_ROTAR_D1 = 23
-PIN_ROTAR_D2 = 24
+PIN_ROTAR_D1 = 19
+PIN_ROTAR_D2 = 26
 
 Dir = [
     'forward',
@@ -97,8 +97,11 @@ rt_a_counter = 0  #エンコーダー積算
 rt_d_counter = 0  #エンコーダー積算
 # 積算開始
 start = time.time()
+delta = time.time() - start
 
 while True:
+    #delta = time.time() - start
+    #start = time.time()
     json_data = {
             'session_id': str(session_id)
             ,'counter': counter
@@ -109,7 +112,7 @@ while True:
             ,'b_speed': 0
             ,'b_position': rt_d_counter
             #,'b_aposition': int(motor_b.get_aposition())
-            ,'delta': time.time() - start
+            ,'delta': delta
     }
     # 制御器へRequest
     response = requests.post(URL + PATH, headers=headers, data = json.dumps(json_data))
@@ -119,7 +122,7 @@ while True:
 
     rt_a_counter = rotorA.steps
     rt_d_counter = rotorD.steps
-    print("rt_a_counter  : " + str(rt_a_counter) + "\t rt_d_counter  : " + str(rt_d_counter) + "\t delta : " + str(time.time() - start))
+    print("rt_a_counter  : " + str(rt_a_counter) + "\t rt_d_counter  : " + str(rt_d_counter) + "\t delta : " + str(delta))
     # deleta theata計測用
     #beforeACount = rt_a_counter
     #beforeDCount = rt_d_counter
@@ -129,8 +132,9 @@ while True:
     mode = int(response['mode'])
     stop_signal = int(response['stop_signal'])
     
-    time.sleep(0.08)
+    delta = time.time() - start
     start = time.time()
+    time.sleep(0.04)
     # 
     if counter == 1:
         Motor.MotorRun(0, 'forward', SPEED)
