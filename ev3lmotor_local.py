@@ -18,7 +18,7 @@ from WitMotionSensor import *
 U_MAX = 100
 U_MIN = 0
 SPEED = 0
-OFFSET = 38
+OFFSET = 36
 FWD = 0
 BCK = 1
 
@@ -80,10 +80,20 @@ def read_wm_motion_angle(th_angle_y):
         #print(round(float(angle_y)))
         th_angle_y.value = angle[int(round(float(angle_y))) - 1]
 
-# 
+
+# calc duty-cycle
+def calc_duty_cycle(delta, acc):
+    dps = acc*delta
+    duty_cycle = (dps - Decimal(str(22.136))) / Decimal(str(5.650)) * (Decimal(str(9)) / Decimal(str(5.5)))
+    return round(duty_cycle)
+    
+ 
 getcontext().prec = 28
 def request_controler(th_angle_y):
     global rotation_a,rotation_d
+
+    am = Decimal(str(16.994702595978385))
+    bm = Decimal(str(99.93766838290357))
 
     factory = PiGPIOFactory()
     rotary_encoder_a = RotaryEncoder(
@@ -121,10 +131,10 @@ def request_controler(th_angle_y):
     pwm.setPWMFreq(50000000.0)
 
     # 制御パラメータ設定
-    k1 = Decimal(str(525.58004077))
-    k2 = Decimal(str(33.12691412))
-    k3 = Decimal(str(3.16227766))
-    k4 = Decimal(str(3.68111972))
+    k1 = Decimal(str(923.6032872))
+    k2 = Decimal(str(144.66070561))
+    k3 = Decimal(str(3.96371232))
+    #k4 = Decimal(str(-1.35649363e-01))
 
     # モータ初期化
     direction_a = 0
@@ -162,8 +172,12 @@ def request_controler(th_angle_y):
         velocity_d = Decimal(delta_theta_d/delta_time)
 
         # U(t)を導出
-        ua = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_a_angle * k3) + (velocity_a * k4))
-        ud = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_d_angle * k3) + (velocity_d * k4))
+        #ua = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_a_angle * k3) + (velocity_a * k4))
+        #ud = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_d_angle * k3) + (velocity_d * k4))
+
+        # 加速度を制御入力とする
+        ua = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_a * k3))
+        ud = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_d * k3))
 
         # 回転方向を設定
         if ua < 0:
@@ -175,20 +189,36 @@ def request_controler(th_angle_y):
             direction_d = BCK
         else:
             direction_d = FWD
+
+        # 制御入力を絶対値に変換
         ua = abs(ua)
         ud = abs(ud)
 
+        # 加速度を電圧に変換
+        #ua = round((1/bm) * ua + (am/bm) * velocity_a)
+        #ud = round((1/bm) * ud + (am/bm) * velocity_d)
+        ua = calc_duty_cycle(delta_time, ua)
+        ud = calc_duty_cycle(delta_time, ud)
+
+        # 電圧をデューティ比に変換
+
+
         # 系に対してPWMデューティ比として与える制御入力をスケーリング
-        if ua != U_MIN:
-            ua = round(Decimal(0.02) * ua)
-        if ud != U_MIN:
-            ud = round(Decimal(0.02) * ud)
+        #if ua != U_MIN:
+        #    ua = round(Decimal(0.02) * ua)
+        #if ud != U_MIN:
+        #    ud = round(Decimal(0.02) * ud)
 
         # デューティ比の最大値を超過する場合は足切り
         if ua > U_MAX:
             ua = U_MAX
         if ud > U_MAX:
             ud = U_MAX
+
+        if ua < U_MIN:
+            ua = U_MIN
+        if ud < U_MIN:
+            ud = U_MIN
         
         print("angle_y  : " + str(angle_y)
                     + "\tangular_velocity_y  : " + str(angular_velocity_y) 
@@ -206,7 +236,7 @@ def request_controler(th_angle_y):
 
         # モータへデューティ比を印加
         motor_driver.MotorRun(pwm, 0, direction[direction_a], ua)
-        motor_driver.MotorRun(pwm, 1, direction[direction_d], ua)
+        motor_driver.MotorRun(pwm, 1, direction[direction_d], ud)
         # ハードウェア側の応答を見て待ち時間を設定
         #time.sleep(0.002)
 
