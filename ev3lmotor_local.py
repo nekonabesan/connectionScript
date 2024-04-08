@@ -84,7 +84,7 @@ def read_wm_motion_angle(th_angle_y):
 # calc duty-cycle
 def calc_duty_cycle(delta, acc):
     dps = acc*delta
-    duty_cycle = (dps - Decimal(str(22.136))) / Decimal(str(5.650)) * (Decimal(str(9)) / Decimal(str(5.5)))
+    duty_cycle = (dps + Decimal(str(11.925))) / Decimal(str(2.482))
     return round(duty_cycle)
     
  
