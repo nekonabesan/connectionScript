@@ -84,7 +84,7 @@ def read_wm_motion_angle(th_angle_y):
 # calc duty-cycle
 def calc_duty_cycle(delta, acc):
     dps = acc*delta
-    duty_cycle = (dps + Decimal(str(11.925))) / Decimal(str(2.482))
+    duty_cycle = (dps + Decimal(str(13.597))) / Decimal(str(2.504))
     return round(duty_cycle)
     
  
@@ -131,10 +131,10 @@ def request_controler(th_angle_y):
     pwm.setPWMFreq(50000000.0)
 
     # 制御パラメータ設定
-    k1 = Decimal(str(923.6032872))
-    k2 = Decimal(str(144.66070561))
-    k3 = Decimal(str(3.96371232))
-    #k4 = Decimal(str(-1.35649363e-01))
+    k1 = Decimal(str(293.80920486))
+    k2 = Decimal(str(18.5147077))
+    k3 = Decimal(str(1.72729915))
+    k4 = Decimal(str(2.10347063))
 
     # モータ初期化
     direction_a = 0
@@ -172,12 +172,12 @@ def request_controler(th_angle_y):
         velocity_d = Decimal(delta_theta_d/delta_time)
 
         # U(t)を導出
-        #ua = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_a_angle * k3) + (velocity_a * k4))
-        #ud = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_d_angle * k3) + (velocity_d * k4))
+        ua = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_a_angle * k3) + (velocity_a * k4))
+        ud = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_d_angle * k3) + (velocity_d * k4))
 
         # 加速度を制御入力とする
-        ua = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_a * k3))
-        ud = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_d * k3))
+        #ua = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_a * k3))
+        #ud = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_d * k3))
 
         # 回転方向を設定
         if ua < 0:
@@ -195,19 +195,8 @@ def request_controler(th_angle_y):
         ud = abs(ud)
 
         # 加速度を電圧に変換
-        #ua = round((1/bm) * ua + (am/bm) * velocity_a)
-        #ud = round((1/bm) * ud + (am/bm) * velocity_d)
         ua = calc_duty_cycle(delta_time, ua)
         ud = calc_duty_cycle(delta_time, ud)
-
-        # 電圧をデューティ比に変換
-
-
-        # 系に対してPWMデューティ比として与える制御入力をスケーリング
-        #if ua != U_MIN:
-        #    ua = round(Decimal(0.02) * ua)
-        #if ud != U_MIN:
-        #    ud = round(Decimal(0.02) * ud)
 
         # デューティ比の最大値を超過する場合は足切り
         if ua > U_MAX:
