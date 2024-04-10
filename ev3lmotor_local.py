@@ -149,6 +149,7 @@ def request_controler(th_angle_y):
         delta_angle_y = Decimal(angle_y - prev_angle_y)
         rt_a_counter = rotary_encoder_a.steps
         rt_d_counter = rotary_encoder_d.steps
+
         # １ステップ前からのモータ回転角度
         delta_theta_a = Decimal(abs(abs(rt_a_counter) - abs(before_count_a)))
         delta_theta_d = Decimal(abs(abs(rt_d_counter) - abs(before_count_d)))
@@ -156,12 +157,15 @@ def request_controler(th_angle_y):
             delta_theta_a = -delta_theta_a
         if rotation_d == BCK:
             delta_theta_d = -delta_theta_d
+
         # motorの振子に対する角度
         motor_a_angle = delta_theta_a - delta_angle_y
         motor_d_angle = delta_theta_d - delta_angle_y
 
+        # Deltaを取得
         delta_time = Decimal(time.time() - start)
         start = time.time()
+    
         # 振子の角速度
         if delta_angle_y == 0:
             angular_velocity_y = Decimal(0)
@@ -172,12 +176,12 @@ def request_controler(th_angle_y):
         velocity_d = Decimal(delta_theta_d/delta_time)
 
         # U(t)を導出
-        ua = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_a_angle * k3) + (velocity_a * k4))
-        ud = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_d_angle * k3) + (velocity_d * k4))
+        #ua = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_a_angle * k3) + (velocity_a * k4))
+        #ud = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_d_angle * k3) + (velocity_d * k4))
 
         # 加速度を制御入力とする
-        #ua = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_a * k3))
-        #ud = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_d * k3))
+        ua = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_a * k3))
+        ud = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_d * k3))
 
         # 回転方向を設定
         if ua < 0:
@@ -226,6 +230,7 @@ def request_controler(th_angle_y):
         # モータへデューティ比を印加
         motor_driver.MotorRun(pwm, 0, direction[direction_a], ua)
         motor_driver.MotorRun(pwm, 1, direction[direction_d], ud)
+
         # ハードウェア側の応答を見て待ち時間を設定
         #time.sleep(0.002)
 

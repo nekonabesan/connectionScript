@@ -11,7 +11,10 @@ from threading import Event
 from gpiozero import RotaryEncoder, Button
 from gpiozero.pins.pigpio import PiGPIOFactory
 
-SPEED = 90
+SPEED = 20
+FWD = 0
+BCK = 1
+
 # APIサーバ
 URL = 'http://192.168.0.56:8000'
 PATH = '/controller/observer/send/'
@@ -22,10 +25,29 @@ mode = -1
 headers = {"Content-Type" : "application/json"}
 
 # ロータリーエンコーダのピン設定
-PIN_ROTAR_A1 = 16
-PIN_ROTAR_A2 = 20
-PIN_ROTAR_D1 = 19
-PIN_ROTAR_D2 = 26
+PIN_ROTAR_A1 = 17
+PIN_ROTAR_A2 = 27
+PIN_ROTAR_D1 = 22
+PIN_ROTAR_D2 = 23
+
+# ロータリーエンコーダ初期化
+rotation_a = FWD
+rotation_d = FWD
+def rotated_clockwise_a():
+    global rotation_a
+    rotation_a = BCK
+
+def rotated_clockwise_d():
+    global rotation_d
+    rotation_d = BCK
+
+def rotated_counter_clockwise_a():
+    global rotation_a
+    rotation_a = FWD
+
+def rotated_counter_clockwise_d():
+    global rotation_d
+    rotation_d = FWD
 
 Dir = [
     'forward',
@@ -81,18 +103,24 @@ pwm.setPWMFreq(25000000.0)
 
 # ロータリーエンコーダ初期化
 factory = PiGPIOFactory()
-rotorA = RotaryEncoder(
+rotary_encoder_a = RotaryEncoder(
         PIN_ROTAR_A1, PIN_ROTAR_A2, wrap=True, max_steps=180, pin_factory=factory
 )
-rotorA.steps = 0
+rotary_encoder_a.steps = 0
+rotary_encoder_a.when_rotated_clockwise = rotated_clockwise_a
+rotary_encoder_a.when_rotated_counter_clockwise = rotated_counter_clockwise_a
 
-rotorD = RotaryEncoder(
+rotary_encoder_d = RotaryEncoder(
         PIN_ROTAR_D1, PIN_ROTAR_D2, wrap=True, max_steps=180, pin_factory=factory
 )
-rotorD.steps = 0
+rotary_encoder_d.steps = 0
+rotary_encoder_d.when_rotated_clockwise = rotated_clockwise_d
+rotary_encoder_d.when_rotated_counter_clockwise = rotated_counter_clockwise_d
 
-beforeCountA = 0
-beforeCountD = 0
+before_count_a = 0
+before_count_d = 0
+delta_theta_a = 0
+delta_theta_d = 0
 rt_a_counter = 0  #エンコーダー積算
 rt_d_counter = 0  #エンコーダー積算
 # 積算開始
@@ -108,10 +136,10 @@ while True:
             ,'mode': mode
             ,'a_speed': 0
             ,'a_position': rt_a_counter
-            #,'a_aposition': int(motor_a.get_aposition())
-            ,'b_speed': 0
-            ,'b_position': rt_d_counter
-            #,'b_aposition': int(motor_b.get_aposition())
+            ,'delta_theta_a': delta_theta_a
+            ,'d_speed': 0
+            ,'d_position': rt_d_counter
+            ,'delta_theta_d': delta_theta_d
             ,'delta': delta
     }
     # 制御器へRequest
@@ -120,22 +148,47 @@ while True:
     response = json.loads(response.text)
     response = response[0]
 
-    rt_a_counter = rotorA.steps
-    rt_d_counter = rotorD.steps
-    print("rt_a_counter  : " + str(rt_a_counter) + "\t rt_d_counter  : " + str(rt_d_counter) + "\t delta : " + str(delta))
-    # deleta theata計測用
-    #beforeACount = rt_a_counter
-    #beforeDCount = rt_d_counter
+    rt_a_counter = rotary_encoder_a.steps
+    rt_d_counter = rotary_encoder_d.steps
+
+    # １ステップ前からのモータ回転角度A
+    if (rt_a_counter >= 0 & before_count_a < 0):
+        delta_theta_a = abs(rt_a_counter + (180 + before_count_a))
+    elif (before_count_a >= 0 & rt_a_counter < 0):
+        delta_theta_a = abs(before_count_a  + rt_a_counter)
+    else:
+        delta_theta_a = abs(abs(before_count_a) - abs(rt_a_counter))
+
+    # １ステップ前からのモータ回転角度D
+    if (rt_d_counter >= 0 & before_count_d < 0):
+        delta_theta_d = abs(rt_d_counter + (180 + before_count_d))
+    elif (before_count_d >= 0 & rt_d_counter < 0):
+        delta_theta_d = abs(before_count_d  + rt_d_counter)
+    else:
+        delta_theta_d = abs(abs(before_count_d) - abs(rt_d_counter))
     
     session_id = response['session_id']
     counter = int(response['counter']) + 1
     mode = int(response['mode'])
     stop_signal = int(response['stop_signal'])
+
+    # deleta theata計測用
+    before_count_a = rt_a_counter
+    before_count_d = rt_d_counter
     
     delta = time.time() - start
     start = time.time()
+
+    print(
+        "rt_a_counter  : " + str(rt_a_counter) 
+        + "\t delta_theta_a : " + str(delta_theta_a)
+        + "\t rt_d_counter  : " + str(rt_d_counter) 
+        + "\t delta_theta_d : " + str(delta_theta_d)
+        + "\t delta : " + str(delta)
+    )
+
     time.sleep(0.04)
-    # 
+    # モータ回転方向を初期化
     if counter == 1:
         Motor.MotorRun(0, 'forward', SPEED)
         Motor.MotorRun(1, 'forward', SPEED)
