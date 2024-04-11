@@ -11,7 +11,7 @@ from threading import Event
 from gpiozero import RotaryEncoder, Button
 from gpiozero.pins.pigpio import PiGPIOFactory
 
-SPEED = 20
+SPEED = 100
 FWD = 0
 BCK = 1
 
@@ -27,8 +27,8 @@ headers = {"Content-Type" : "application/json"}
 # ロータリーエンコーダのピン設定
 PIN_ROTAR_A1 = 17
 PIN_ROTAR_A2 = 27
-PIN_ROTAR_D1 = 22
-PIN_ROTAR_D2 = 23
+PIN_ROTAR_D1 = 20
+PIN_ROTAR_D2 = 21
 
 # ロータリーエンコーダ初期化
 rotation_a = FWD

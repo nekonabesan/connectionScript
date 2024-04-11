@@ -25,8 +25,8 @@ BCK = 1
 # ロータリーエンコーダのピン設定
 PIN_ROTAR_A1 = 17
 PIN_ROTAR_A2 = 27
-PIN_ROTAR_D1 = 22
-PIN_ROTAR_D2 = 23
+PIN_ROTAR_D1 = 20
+PIN_ROTAR_D2 = 21
 
 # ロータリーエンコーダ初期化
 rotation_a = FWD
@@ -150,9 +150,22 @@ def request_controler(th_angle_y):
         rt_a_counter = rotary_encoder_a.steps
         rt_d_counter = rotary_encoder_d.steps
 
-        # １ステップ前からのモータ回転角度
-        delta_theta_a = Decimal(abs(abs(rt_a_counter) - abs(before_count_a)))
-        delta_theta_d = Decimal(abs(abs(rt_d_counter) - abs(before_count_d)))
+        # １ステップ前からのモータ回転角度A
+        if (rt_a_counter >= 0 & before_count_a < 0):
+            delta_theta_a = Decimal(abs(rt_a_counter + (180 + before_count_a)))
+        elif (before_count_a >= 0 & rt_a_counter < 0):
+            delta_theta_a = Decimal(abs(before_count_a  + rt_a_counter))
+        else:
+            delta_theta_a = Decimal(abs(abs(before_count_a) - abs(rt_a_counter)))
+
+        # １ステップ前からのモータ回転角度D
+        if (rt_d_counter >= 0 & before_count_d < 0):
+            delta_theta_d = Decimal(abs(rt_d_counter + (180 + before_count_d)))
+        elif (before_count_d >= 0 & rt_d_counter < 0):
+            delta_theta_d = Decimal(abs(before_count_d  + rt_d_counter))
+        else:
+            delta_theta_d = Decimal(abs(abs(before_count_d) - abs(rt_d_counter)))
+
         if rotation_a == BCK:
             delta_theta_a = -delta_theta_a
         if rotation_d == BCK:
