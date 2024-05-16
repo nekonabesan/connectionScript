@@ -18,7 +18,7 @@ from WitMotionSensor import *
 U_MAX = 100
 U_MIN = 0
 SPEED = 0
-OFFSET = 36
+OFFSET = 38
 FWD = 0
 BCK = 1
 
@@ -82,9 +82,11 @@ def read_wm_motion_angle(th_angle_y):
 
 
 # calc duty-cycle
-def calc_duty_cycle(delta, acc):
-    dps = acc*delta
-    duty_cycle = (dps + Decimal(str(13.597))) / Decimal(str(2.504))
+def calc_duty_cycle(acc):
+    # 5.5v
+    # y= 39.784x + -192.066 
+    # x = (y + 192.066) / 39.784
+    duty_cycle = (acc + Decimal(str(192.066))) / Decimal(str(39.784))
     return round(duty_cycle)
     
  
@@ -189,12 +191,12 @@ def request_controler(th_angle_y):
         velocity_d = Decimal(delta_theta_d/delta_time)
 
         # U(t)を導出
-        #ua = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_a_angle * k3) + (velocity_a * k4))
-        #ud = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_d_angle * k3) + (velocity_d * k4))
+        ua = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_a_angle * k3) + (velocity_a * k4))
+        ud = ((angle_y * k1) + (angular_velocity_y * k2) + (motor_d_angle * k3) + (velocity_d * k4))
 
         # 加速度を制御入力とする
-        ua = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_a * k3))
-        ud = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_d * k3))
+        #ua = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_a * k3))
+        #ud = ((angle_y * k1) + (angular_velocity_y * k2) + (velocity_d * k3))
 
         # 回転方向を設定
         if ua < 0:
@@ -212,8 +214,8 @@ def request_controler(th_angle_y):
         ud = abs(ud)
 
         # 加速度を電圧に変換
-        ua = calc_duty_cycle(delta_time, ua)
-        ud = calc_duty_cycle(delta_time, ud)
+        ua = calc_duty_cycle(ua)
+        ud = calc_duty_cycle(ud)
 
         # デューティ比の最大値を超過する場合は足切り
         if ua > U_MAX:
