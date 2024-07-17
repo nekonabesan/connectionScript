@@ -58,12 +58,6 @@ for i in range(360):
         angle.append(i)
     else:
         angle.append(i - 360)
-
-# calc duty-cycle
-def calc_duty_cycle(delta, acc):
-    duty_cycle = (acc + Decimal(str(192.066))) / Decimal(str(39.784))
-    return round(duty_cycle)
-    
  
 getcontext().prec = 28
 factory = PiGPIOFactory()
@@ -81,11 +75,20 @@ rotary_encoder_d.steps = 0
 rotary_encoder_d.when_rotated_clockwise = rotated_clockwise_d
 rotary_encoder_d.when_rotated_counter_clockwise = rotated_counter_clockwise_d
 
+# calc duty-cycle
+def calc_duty_cycle(delta, acc):
+    duty_cycle = (acc + Decimal(str(192.066))) / Decimal(str(39.784))
+    return round(duty_cycle)
+
 before_count_a = 0
 before_count_d = 0
 rt_a_counter = 0
 rt_d_counter = 0
 prev_angle_y = 0
+
+e = 0
+e1 = 0
+e2 = 0
 
 direction = [
     'forward',
@@ -113,6 +116,7 @@ imu.set_gyro_automatic_calibration(True)
 
 def worker():
     global imu
+    global e, e1, e2
     global k1,k2,k3
     global sense
     global angle
@@ -130,6 +134,9 @@ def worker():
     global direction_a
     global direction_d
     
+    motor_driver.MotorRun(pwm, 0, direction[direction_a], 0)
+    motor_driver.MotorRun(pwm, 1, direction[direction_d], 0)
+
     # 振子の回転角度を取得(witmotion)
     angle_x,angle_y,angle_z = imu.get_angle()
     angle_y = Decimal(str(angle_y))
@@ -187,6 +194,7 @@ def worker():
     pwm_a = calc_duty_cycle(delta_time, acc_a)
     pwm_d = calc_duty_cycle(delta_time, acc_d)
 
+
     # デューティ比の最大値を超過する場合は足切り
     if pwm_a > U_MAX:
         pwm_a = U_MAX
@@ -201,7 +209,7 @@ def worker():
     print("angle_y  : " + str("{:.3f}".format(angle_y))
                     + "\tangular_velocity_y  : " + str(omega_y) 
                     + "\t motor angle : " + str(motor_a_angle)
-                    + "\t motor velocity : " + str(velocity_a)
+                    + "\t motor velocity : " + str("{:.7f}".format(velocity_a))
                     + "\t acc : " + str("{:.3f}".format(acc_a))
                     + "\t pwm : " + str(pwm_a)
                     + "\t delta : " + str("{:.4f}".format(delta_time)))
@@ -214,6 +222,7 @@ def worker():
     # モータへデューティ比を印加
     motor_driver.MotorRun(pwm, 0, direction[direction_a], pwm_a)
     motor_driver.MotorRun(pwm, 1, direction[direction_d], pwm_d)
+
     # ハードウェア側の応答を見て待ち時間を設定
     #time.sleep(0.002)
 
