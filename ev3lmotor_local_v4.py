@@ -5,7 +5,6 @@ import time
 import numpy as np
 from decimal import *
 from threading import Event
-from sense_hat import SenseHat
 from MotorDriver import *
 from ConnectionSenseHat import *
 from modules.PCA9685 import PCA9685
@@ -48,16 +47,6 @@ def rotated_counter_clockwise_a():
 def rotated_counter_clockwise_d():
     global rotation_d
     rotation_d = FWD
-
-# sense hatを初期化
-sense = SenseHat()
-angle = []
-# sense hat指示値読み替え用配列定義
-for i in range(360):
-    if i <= 180:
-        angle.append(i)
-    else:
-        angle.append(i - 360)
  
 getcontext().prec = 28
 factory = PiGPIOFactory()
@@ -118,8 +107,6 @@ def worker():
     global imu
     global e, e1, e2
     global k1,k2,k3
-    global sense
-    global angle
     global start
     global rotary_encoder_a
     global rotary_encoder_d
@@ -175,6 +162,9 @@ def worker():
     acc_a = ((angle_y * k1) + (omega_y * k2) + (velocity_a * k3))
     acc_d = ((angle_y * k1) + (omega_y * k2) + (velocity_d * k3))
 
+    v_a = Decimal(str(acc_a)) * delta_time
+    angle_a = Decimal(str(1/2)) * acc_a * pow(delta_time, 2) + Decimal(str(v_a * delta_time)) + angle_y
+
     # 回転方向を設定
     if acc_a < 0:
         direction_a = BCK
@@ -212,6 +202,7 @@ def worker():
                     + "\t motor velocity : " + str("{:.7f}".format(velocity_a))
                     + "\t acc : " + str("{:.3f}".format(acc_a))
                     + "\t pwm : " + str(pwm_a)
+                    + "\t angle_a : " + str(angle_a)
                     + "\t delta : " + str("{:.4f}".format(delta_time)))
         
     # deleta theata計測用

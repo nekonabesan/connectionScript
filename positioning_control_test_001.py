@@ -3,16 +3,20 @@
 import os
 import time
 import numpy as np
+
+import serial
+import binascii
+
 from decimal import *
 from threading import Event
-from sense_hat import SenseHat
-from MotorDriver import *
+from modules.MotorDriver import *
 from ConnectionSenseHat import *
 from modules.PCA9685 import PCA9685
 from multiprocessing import Value, Array, Process
 from gpiozero import RotaryEncoder, Button
 from gpiozero.pins.pigpio import PiGPIOFactory
 from witmotion import IMU
+
 
 U_MAX = 100
 U_MIN = 0
@@ -22,13 +26,13 @@ FWD = 0
 BCK = 1
 
 # witmotion
-imu = IMU()
+#imu = IMU()
 
 # ロータリーエンコーダのピン設定
-PIN_ROTAR_A1 = 22
-PIN_ROTAR_A2 = 23
-PIN_ROTAR_D1 = 17
-PIN_ROTAR_D2 = 27
+PIN_ROTAR_A1 = 16
+PIN_ROTAR_A2 = 20
+PIN_ROTAR_D1 = 19
+PIN_ROTAR_D2 = 26
 
 # ロータリーエンコーダ初期化
 rotation_a = FWD
@@ -48,16 +52,6 @@ def rotated_counter_clockwise_a():
 def rotated_counter_clockwise_d():
     global rotation_d
     rotation_d = FWD
-
-# sense hatを初期化
-sense = SenseHat()
-angle = []
-# sense hat指示値読み替え用配列定義
-for i in range(360):
-    if i <= 180:
-        angle.append(i)
-    else:
-        angle.append(i - 360)
  
 getcontext().prec = 28
 factory = PiGPIOFactory()
@@ -115,6 +109,7 @@ getcontext().prec = 28
 
 
 def main():
+    """
     global ref
     global e, e1, e2
     global start
@@ -144,6 +139,8 @@ def main():
             delta_theta_a = -delta_theta_a
         if rotation_d == BCK:
             delta_theta_d = -delta_theta_d
+        
+        
 
         print("rt_a_counter  : " + str("{:.7f}".format(rt_a_counter))
               + "\tdelta_theta_a  : " + str("{:.7f}".format(delta_theta_a)))
@@ -156,7 +153,21 @@ def main():
         # モータへデューティ比を印加
         motor_driver.MotorRun(pwm, 0, direction[direction_a], 20)
         motor_driver.MotorRun(pwm, 1, direction[direction_d], 20)
+    """
+    ser = serial.Serial('/dev/ttyACM0', 115200, timeout = 0.5)
+    print(str(ser))
 
+    while True:
+        #コマンドの結果を受信(4byte)
+        #data = ser.read(28)
+        #print(data.decode())
+        #コマンドの結果を受信
+        data = ser.readline()
+        data = data.decode().replace('\n','').split(',')
+
+        print(data)
+
+    ser.close() # ポートのクローズ
 
 
     return 0

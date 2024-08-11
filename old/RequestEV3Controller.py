@@ -8,7 +8,7 @@ import concurrent.futures
 from decimal import *
 from threading import Event
 from sense_hat import SenseHat
-from MotorDriver import *
+from modules.MotorDriver import *
 from ConnectionSenseHat import *
 from modules.PCA9685 import PCA9685
 from multiprocessing import Value, Array, Process
