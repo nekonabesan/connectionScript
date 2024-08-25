@@ -1,7 +1,7 @@
+import math
 import time
+import threading
 from decimal import *
-from threading import *
-from ConnectionSenseHat import *
 from modules.PCA9685 import PCA9685
 from modules.MotorEncoder import MotorEncoder
 from modules.MotorDriver import MotorDriver
@@ -10,6 +10,7 @@ from modules.RtSensor import RtSensor
 FWD = 0
 REV = 1
 
+angle = 0
 driver = None
 enocoder = None
 sensor = None
@@ -26,6 +27,7 @@ def calc_duty_cycle(delta, acc):
     return round(duty_cycle)
 
 def worker ():
+    global angle
     global start
     global driver
     global enocoder
@@ -38,15 +40,27 @@ def worker ():
 
     # 傾斜角取得
     # 0:タイムスタンプ,1:角速度 X,2:角速度 Y,3:角速度 Z. 4:加速度 X, 5:加速度 Y, 6:加速度 Z, 7:地磁気 X, 8:地磁気 Y, 9:地磁気 Z, 10:温度
+    # それぞれの値の単位系は以下のようになります.
+    # タイムスタンプ:0 から 255 までの整数
+    # 角速度:小数値[rad/sec]
+    # 加速度:小数値[G]
+    # 地磁気:小数値[μT]
+    # 温度:小数値[℃]
     result = sensor.getSensorValues()
-    velosity_y =  Decimal(str(result[2]))
-    acc_a = Decimal(str(result[5]))
-    angle_y = 1/2 * acc_a * pow(delta_time, 2) + (velosity_y * delta_time)
+    velosity_y, gyro_offset = sensor.get_robot_body_angle_and_speed()
+    velosity_y = Decimal(str(velosity_y)) * Decimal(str(180/math.pi))
+    acc_a = Decimal(str(result[5])) * Decimal(str(9.8))
+    angle = angle + (velosity_y * delta_time)
 
-    integral = Decimal(str(integral)) + angle_y * delta_time
+    if angle > 45:
+        angle = Decimal(str(45))
+    if angle < -45:
+        angle = Decimal(str(-45))
+
+    integral = Decimal(str(integral)) + angle * delta_time
     # 加速度を制御入力とする
-    acc_a = ((angle_y * kp) + (velosity_y * kd) + (integral * ki))
-    acc_d = ((angle_y * kp) + (velosity_y * kd) + (integral * ki))
+    acc_a = (Decimal(str(-1)) * ((angle * kp) + (velosity_y * kd) + (integral * ki)))
+    acc_d = (Decimal(str(-1)) * ((angle * kp) + (velosity_y * kd) + (integral * ki)))
 
     # 回転方向を設定
     if acc_a < 0:
@@ -69,7 +83,7 @@ def worker ():
 
     print(
         "dt : " + str("{:.3f}".format(delta_time))
-        + "\tangle_y  : " + str("{:.3f}".format(angle_y))
+        + "\tangle_y  : " + str("{:.3f}".format(angle))
         + "\tvelosity_y : " + str("{:.3f}".format(velosity_y))
         + "\t acc : " + str("{:.3f}".format(acc_a))
         + "\t pwm : " + str("{:.3f}".format(pwm_a))
@@ -85,7 +99,7 @@ def worker ():
 
 start = time.time()
 getcontext().prec = 28
-def mainloop(interval, worker):
+def mainloop(interval):
     global start
     # 積算開始
     now = time.time()
@@ -106,4 +120,4 @@ if __name__ == "__main__":
     pwm = PCA9685(0x40, debug=False)
     pwm.setPWMFreq(50)
     pwm.setPWMFreq(50000000.0)
-    mainloop(0.01, worker)
+    mainloop(0.01)

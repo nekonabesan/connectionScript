@@ -6,7 +6,7 @@ import numpy as np
 from decimal import *
 from threading import Event
 from MotorDriver import *
-from ConnectionSenseHat import *
+from modules.ConnectionSenseHat import *
 from modules.PCA9685 import PCA9685
 from multiprocessing import Value, Array, Process
 from gpiozero import RotaryEncoder, Button

@@ -9,7 +9,7 @@ from decimal import *
 from threading import Event
 from sense_hat import SenseHat
 from modules.MotorDriver import *
-from ConnectionSenseHat import *
+from modules.ConnectionSenseHat import *
 from modules.PCA9685 import PCA9685
 from multiprocessing import Value, Array, Process
 from gpiozero import RotaryEncoder, Button
