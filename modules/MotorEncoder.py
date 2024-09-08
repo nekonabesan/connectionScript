@@ -6,7 +6,6 @@ FWD = 0
 REV = 1
 
 class MotorEncoder():
-    
 
     rotary_encoder_a = None
     rotary_encoder_b = None

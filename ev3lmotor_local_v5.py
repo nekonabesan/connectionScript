@@ -58,6 +58,11 @@ def worker ():
         angle = Decimal(str(-45))
 
     integral = Decimal(str(integral)) + angle * delta_time
+    if integral < -2:
+        integral = Decimal(str(-2))
+    if integral > 2:
+        integral = Decimal(str(2))
+
     # 加速度を制御入力とする
     acc_a = (Decimal(str(-1)) * ((angle * kp) + (velosity_y * kd) + (integral * ki)))
     acc_d = (Decimal(str(-1)) * ((angle * kp) + (velosity_y * kd) + (integral * ki)))
