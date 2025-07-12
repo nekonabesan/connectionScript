@@ -46,10 +46,17 @@ def worker ():
     # 加速度:小数値[G]
     # 地磁気:小数値[μT]
     # 温度:小数値[℃]
-    result = sensor.getSensorValues()
-    velosity_y, gyro_offset = sensor.get_robot_body_angle_and_speed()
-    velosity_y = Decimal(str(velosity_y)) * Decimal(str(180/math.pi))
-    acc_a = Decimal(str(result[5])) * Decimal(str(9.8))
+    
+    #result = sensor.getSensorValues()
+    #velosity_y, gyro_offset = sensor.get_robot_body_angle_and_speed()
+
+    raw = sensor.get_raw_data()
+    calibrated = sensor.apply_calibration(raw)
+    acc_y = calibrated[1]
+    velosity_y = calibrated[4]
+    
+    #velosity_y = Decimal(str(velosity_y)) * Decimal(str(180/math.pi))
+    #acc_a = Decimal(str(result[5])) * Decimal(str(9.8))
     angle = angle + (velosity_y * delta_time)
 
     if angle > 45:
@@ -97,7 +104,6 @@ def worker ():
     # モータへデューティ比を印加
     driver.MotorRun(pwm, 0, MotorDriver.direction[direction_a], pwm_a)
     driver.MotorRun(pwm, 1, MotorDriver.direction[direction_d], pwm_d)
-    
     # ハードウェア側の応答を見て待ち時間を設定
     #time.sleep(0.002)
 
