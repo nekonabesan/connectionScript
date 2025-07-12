@@ -1,3 +1,4 @@
+import asyncio
 import math
 import time
 import threading
@@ -6,6 +7,9 @@ from modules.PCA9685 import PCA9685
 from modules.MotorEncoder import MotorEncoder
 from modules.MotorDriver import MotorDriver
 from modules.RtSensor import RtSensor
+from serial_asyncio import open_serial_connection
+
+
 
 FWD = 0
 REV = 1
@@ -16,6 +20,8 @@ enocoder = None
 sensor = None
 pwm = None
 integral = None
+port = None
+
 
 kp = Decimal(str(80))
 kd = Decimal(str(10))
@@ -26,6 +32,21 @@ def calc_duty_cycle(delta, acc):
     duty_cycle = (acc + Decimal(str(192.066))) / Decimal(str(39.784))
     return round(duty_cycle)
 
+def compute_pid_output(angle, velosity_y, integral, kp, ki, kd):
+    return -(angle * kp + velosity_y * kd + integral * ki)
+
+def get_direction(value):
+    return REV if value < 0 else FWD
+
+async def read_sensor():
+    global port
+    reader, writer = await open_serial_connection(url=port, baudrate=115200)
+    while True:
+        line = await reader.readline()
+        decoded = line.decode().strip()
+        print("Sensor:", decoded)
+        await asyncio.sleep(0.001)  # 制御周期に合わせて調整
+
 def worker ():
     global angle
     global start
@@ -34,6 +55,7 @@ def worker ():
     global sensor
     global pwm
     global integral
+    global port
 
     delta_time = Decimal(time.time() - start)
     start = time.time()
@@ -46,62 +68,33 @@ def worker ():
     # 加速度:小数値[G]
     # 地磁気:小数値[μT]
     # 温度:小数値[℃]
-    
-    #result = sensor.getSensorValues()
-    #velosity_y, gyro_offset = sensor.get_robot_body_angle_and_speed()
 
     raw = sensor.get_raw_data()
     calibrated = sensor.apply_calibration(raw)
-    acc_y = calibrated[1]
-    velosity_y = calibrated[4]
-    
-    #velosity_y = Decimal(str(velosity_y)) * Decimal(str(180/math.pi))
-    #acc_a = Decimal(str(result[5])) * Decimal(str(9.8))
-    angle = angle + (velosity_y * delta_time)
+    acc_y = Decimal(str(calibrated[1]))
+    velosity_y = Decimal(str(calibrated[4]))
 
-    if angle > 45:
-        angle = Decimal(str(45))
-    if angle < -45:
-        angle = Decimal(str(-45))
+    # 加速度を角度に変換
+    angle = Decimal(angle) + (velosity_y * Decimal(delta_time))
 
-    integral = Decimal(str(integral)) + angle * delta_time
-    if integral < -2:
-        integral = Decimal(str(-2))
-    if integral > 2:
-        integral = Decimal(str(2))
+    # PID演算（1回のみ）
+    acc = compute_pid_output(angle, velosity_y, integral, kp, ki, kd)
 
-    # 加速度を制御入力とする
-    acc_a = (Decimal(str(-1)) * ((angle * kp) + (velosity_y * kd) + (integral * ki)))
-    acc_d = (Decimal(str(-1)) * ((angle * kp) + (velosity_y * kd) + (integral * ki)))
-
-    # 回転方向を設定
-    if acc_a < 0:
-        direction_a = REV
-    else:
-        direction_a = FWD
-
-    if acc_d < 0:
-        direction_d = REV
-    else:
-        direction_d = FWD
+    # 回転方向の判定
+    direction_a = get_direction(acc)
+    direction_d = get_direction(acc)
 
     # 制御入力を絶対値に変換
-    acc_a = abs(acc_a)
-    acc_d = abs(acc_d)
+    acc_abs = abs(acc)
 
-    # 加速度をデューティー比に変換
-    pwm_a = calc_duty_cycle(delta_time, acc_a)
-    pwm_d = calc_duty_cycle(delta_time, acc_d)
+    # デューティー比に変換
+    pwm_a = calc_duty_cycle(delta_time, acc_abs)
+    pwm_d = calc_duty_cycle(delta_time, acc_abs)
 
-    print(
-        "dt : " + str("{:.3f}".format(delta_time))
-        + "\tangle_y  : " + str("{:.3f}".format(angle))
-        + "\tvelosity_y : " + str("{:.3f}".format(velosity_y))
-        + "\t acc : " + str("{:.3f}".format(acc_a))
-        + "\t pwm : " + str("{:.3f}".format(pwm_a))
-    )
+    # ログ出力
+    print(f"dt: {delta_time:.3f}\tangle_y: {angle:.3f}\tvelosity_y: {velosity_y:.3f}\tacc: {acc_abs:.3f}\tpwm: {pwm_a:.3f}")
 
-    # モータへデューティ比を印加
+    # モータ制御
     driver.MotorRun(pwm, 0, MotorDriver.direction[direction_a], pwm_a)
     driver.MotorRun(pwm, 1, MotorDriver.direction[direction_d], pwm_d)
     # ハードウェア側の応答を見て待ち時間を設定
@@ -126,6 +119,7 @@ if __name__ == "__main__":
     encoder = MotorEncoder(FWD, FWD, 16, 20, 19, 26)
     driver = MotorDriver()
     sensor = RtSensor()
+    port = sensor.get_port()
     integral = Decimal(str(0))
     # PWM制御
     pwm = PCA9685(0x40, debug=False)
