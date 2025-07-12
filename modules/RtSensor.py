@@ -3,6 +3,8 @@ import serial
 import serial.tools.list_ports
 import time
 from decimal import *
+from serial_asyncio import open_serial_connection
+
 
 class RtSensor():
     EXPECTED_LENGTH = 11 
@@ -15,6 +17,8 @@ class RtSensor():
     gyro_offset = None
     offset = None
     scale = None
+    reader = None
+    writer = None
 
     # /--------------------------------------------------------------/ #
     # センサの角速度オフセットを取得
@@ -46,6 +50,25 @@ class RtSensor():
         self.time_out_sec = time_out_sec
         self.ser = serial.Serial(self.port, self.rate, timeout = self.time_out_sec)
         self.calibrate_static_orientation()
+
+    # /--------------------------------------------------------------/ #
+    # センサの初期化
+    # /--------------------------------------------------------------/ #
+    async def initialize(self , baudrate=115200):
+        self.reader, self.writer = await open_serial_connection(url=self.port, baudrate=baudrate)
+
+
+    # /--------------------------------------------------------------/ #
+    # センサの生データを非同期で読み取る
+    # /--------------------------------------------------------------/ #
+    async def get_raw_values(self):
+        line = await self.reader.readline()
+        values = line.decode().strip().split(',')
+        if len(values) < 7:
+            return None
+        accel = [float(values[4]), float(values[5]), float(values[6])]
+        gyro = [float(values[1]), float(values[2]), float(values[3])]
+        return accel + gyro
 
     # /--------------------------------------------------------------/ #
     # シリアルポートの一覧を取得
