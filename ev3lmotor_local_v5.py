@@ -32,11 +32,14 @@ async def mainloop(interval, sensor, driver, pwm):
         delta_time = Decimal(str(time.time() - start))
         start = time.time()
 
-        raw = sensor.get_raw_data()  # 同期読み出しでOK
-        calibrated = sensor.apply_calibration(raw)
-
-        acc_y = Decimal(str(calibrated[1]))
-        velocity_y = Decimal(str(calibrated[4]))
+        raw = sensor.get_raw_binary()
+        # ASCII 出力時
+        #calibrated = sensor.apply_calibration(raw)
+        #acc_y = Decimal(str(calibrated[1]))
+        #velocity_y = Decimal(str(calibrated[4]))
+        # Binary 出力時
+        acc_x, acc_y, acc_z, velocity_x, velocity_y, velocity_z, temp = sensor.get_raw_binary()
+        velocity_y = Decimal(str(velocity_y))
 
         angle += velocity_y * delta_time
         integral += angle * delta_time
@@ -61,8 +64,8 @@ if __name__ == "__main__":
     pwm = PCA9685(0x40, debug=False)
     pwm.setPWMFreq(50)
 
-    sensor = RtSensor()
+    sensor = RtSensor(1)
     port = sensor.get_port()
-    sensor.initialize()  # 必要に応じてポートを引数で指定
+    sensor.initialize_binary()  # 必要に応じてポートを引数で指定
 
     asyncio.run(mainloop(0.01, sensor, driver, pwm))

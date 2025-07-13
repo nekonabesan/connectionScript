@@ -7,7 +7,10 @@ from serial_asyncio import open_serial_connection
 
 
 class RtSensor():
-    EXPECTED_LENGTH = 11 
+    EXPECTED_LENGTH = 11
+    BIN_EXPECTED_LENGTH = 28
+    ASCII = 0
+    BINARY = 1
     PORTS = ["/dev/ttyACM0", "/dev/ttyAMA0", "/dev/ttyS0"]
 
     port = None
@@ -41,21 +44,33 @@ class RtSensor():
     # /--------------------------------------------------------------/ #
     # constructor
     # /--------------------------------------------------------------/ #
-    def __init__(self, rate = 115200, time_out_sec = 0.5):
+    def __init__(self, mode = 1, rate = 115200, time_out_sec = 0.5):
         self.offset = [0.0, 0.0, 0.0]
         self.scale = [1.0, 1.0, 1.0]
-        port, _ = self.find_sensor_port()
-        self.port = port
         self.rate = rate
         self.time_out_sec = time_out_sec
         self.ser = serial.Serial(self.port, self.rate, timeout = self.time_out_sec)
-        self.calibrate_static_orientation()
+        if mode == self.ASCII:
+            self.port = self.find_sensor_port()
+            self.calibrate_static_orientation()
+        elif mode == self.BINARY:
+            self.port, _ = self.find_sensor_port_binary()
+        
 
     # /--------------------------------------------------------------/ #
     # センサの初期化
+    # ASCII 出力時通信プロトコル
     # /--------------------------------------------------------------/ #
     async def initialize(self , baudrate=115200):
         self.reader, self.writer = await open_serial_connection(url=self.port, baudrate=baudrate)
+
+    # /--------------------------------------------------------------/ #
+    # センサの初期化
+    # Binary 出力時通信プロトコル
+    # /--------------------------------------------------------------/ #
+    async def initialize_binary(self, baudrate=115200):
+        self.reader, self.writer = await open_serial_connection(url=self.port, baudrate=baudrate)
+        #self.sync_header = b'\xFF\xFF\x52\x54'  # Binaryモードのヘッダー
 
 
     # /--------------------------------------------------------------/ #
@@ -79,6 +94,7 @@ class RtSensor():
 
     # /--------------------------------------------------------------/ #
     # シリアルポートに接続を試みる
+    # ASCII 出力時通信プロトコル
     # /--------------------------------------------------------------/ #
     def try_connect(self, port, rate=115200, time_out_sec=0.5):
         try:
@@ -93,7 +109,29 @@ class RtSensor():
         return None
 
     # /--------------------------------------------------------------/ #
+    # シリアルポートに接続を試みる
+    # Binary 出力時通信プロトコル
+    # 先頭4バイトがヘッダで、残り24バイト
+    # /--------------------------------------------------------------/ #
+    def try_connect_binary(self, port, rate=115200, time_out_sec=0.5):
+        try:
+            ser = serial.Serial(port, rate, timeout=time_out_sec)
+            sync_bytes = ser.read(4)  # 先頭4バイトを同期確認
+            if len(sync_bytes) == 4 and sync_bytes == b'\xFF\xFF\x52\x54':
+                payload = ser.read(24)  # 残りのバイナリデータ
+                ser.close()
+                if len(payload) == 24:
+                    return sync_bytes + payload  # 28バイトの完全なパケット
+            else:
+                ser.close()
+                print(f"Port {port}: Header mismatch or insufficient data.")
+        except Exception as e:
+            print(f"Port {port} failed: {e}")
+        return None
+
+    # /--------------------------------------------------------------/ #
     # センサのポートを自動検出
+    # ASCII 出力時通信プロトコル
     # /--------------------------------------------------------------/ #
     def find_sensor_port(self):
         for port in self.PORTS:
@@ -106,7 +144,22 @@ class RtSensor():
         return None, None
 
     # /--------------------------------------------------------------/ #
+    # センサのポートを自動検出
+    # Binary 出力時通信プロトコル
+    # /--------------------------------------------------------------/ #
+    def find_sensor_port_binary(self):
+        for port in self.PORTS:
+            print(f"Trying port: {port}")
+            result = self.try_connect_binary(port)
+            if result is not None:
+                print(f"Sensor found on {port}")
+                return port, result
+        print("Sensor not found on listed ports.")
+        return None, None
+
+    # /--------------------------------------------------------------/ #
     # センサの生データから角速度,角加速度を取得
+    # ASCII 出力時通信プロトコル
     # /--------------------------------------------------------------/ #
     def get_raw_data(self):
         raw_line = self.get_sensor_values()
@@ -115,6 +168,7 @@ class RtSensor():
 
     # /--------------------------------------------------------------/ #
     # センサの生データを取得し、校正値を適用
+    # ASCII 出力時通信プロトコル
     # /--------------------------------------------------------------/ #
     def apply_calibration(self, raw):
         """
@@ -138,6 +192,7 @@ class RtSensor():
 
     # /--------------------------------------------------------------/ #
     # 平均化されたセンサデータを取得
+    # ASCII 出力時通信プロトコル
     # /--------------------------------------------------------------/ #
     def average_data(self, num_samples=100, wait=0.01):
         data_list = []
@@ -149,6 +204,7 @@ class RtSensor():
     # /--------------------------------------------------------------/ #
     # センサの静的な姿勢をキャリブレーション
     # センサを固定した状態で各軸の正負方向を測定
+    # ASCII 出力時通信プロトコル
     # /--------------------------------------------------------------/ #
     def calibrate_static_orientation(self):
         def average_data(num_samples=100, wait=0.01):
@@ -194,31 +250,6 @@ class RtSensor():
             (gyp[1] + gym[1]) / 2,
             (gzp[2] + gzm[2]) / 2
         ]
-    
-    # /--------------------------------------------------------------/ #
-    # センサを校正
-    # 廃止
-    # /--------------------------------------------------------------/ #
-    """
-    def calibration_gyro_ofset(self):
-        gyro_minimam_rate = 0
-        gyro_maximum_rate = 2
-        gyro_sum = 0
-        while (gyro_maximum_rate - gyro_minimam_rate) < 2:
-            gyro_minimam_rate = 440
-            gyro_maximum_rate = -440
-            gyro_sum = 0
-            for index in range(200):
-                result = self.get_sensor_values()
-                gyro_sensor_value = result[3]
-                gyro_sum = gyro_sum + gyro_sensor_value
-                if gyro_sensor_value > gyro_maximum_rate:
-                    gyro_maximum_rate = gyro_sensor_value
-                if gyro_sensor_value < gyro_minimam_rate:
-                    gyro_minimam_rate = gyro_sensor_value
-                time.sleep(0.004)
-        self.gyro_offset = (gyro_sum / 200)
-    """
 
     # /--------------------------------------------------------------/ #
     # 角速度と角度を導出 
@@ -258,6 +289,7 @@ class RtSensor():
     # センサデータをパースして辞書形式で返す
     # 配列のindexと格納値は以下
     # 0:タイムスタンプ,1:角速度 X,2:角速度 Y,3:角速度 Z. 4:加速度 X, 5:加速度 Y, 6:加速度 Z, 7:地磁気 X, 8:地磁気 Y, 9:地磁気 Z, 10:温度
+    # ASCII 出力時通信プロトコル
     # /--------------------------------------------------------------/ #
     def parse_sensor_values(self, values):
         keys = [
@@ -273,6 +305,7 @@ class RtSensor():
 
     # /--------------------------------------------------------------/ #
     # 平均化されたセンサデータを取得
+    # ASCII 出力時通信プロトコル
     # /--------------------------------------------------------------/ #
     def average_samples(self, get_data_func, duration=2.0, interval=0.05):
         """
@@ -289,6 +322,7 @@ class RtSensor():
 
     # /--------------------------------------------------------------/ #
     # 加速度センサのキャリブレーション
+    # ASCII 出力時通信プロトコル
     # /--------------------------------------------------------------/ #
     def calibrate_accelerometer(self, get_data_func_dict):
         """
@@ -304,4 +338,36 @@ class RtSensor():
 
         self.offset = [(x_max + x_min) / 2, (y_max + y_min) / 2, (z_max + z_min) / 2]
         self.scale = [(x_max - x_min) / 2, (y_max - y_min) / 2, (z_max - z_min) / 2]
+
+    # /--------------------------------------------------------------/ #
+    # Binaryモードで28バイトのセンサデータを取得
+    # /--------------------------------------------------------------/ #
+    def get_raw_binary(self):
+        buffer = self.ser.read(self.BIN_EXPECTED_LENGTH)
+        if len(buffer) != self.BIN_EXPECTED_LENGTH:
+            while len(buffer) != self.BIN_EXPECTED_LENGTH:
+                print(buffer)
+                self.ser.reset_input_buffer()
+                buffer = self.get_raw_binary()
+        if not buffer:
+            print("センサからデータが取得できませんでした")
+            return []
+
+        # バイナリデータの構造に従ってパース（例: 8bit x 2 → 16bit）
+        def to_signed_16bit(low, high):
+            value = low + (high << 8)
+            return value - 65536 if value >= 32768 else value
+
+        # 各センサ値の抽出（例: 加速度、角速度、地磁気、温度）
+        acc_x = to_signed_16bit(buffer[8], buffer[9]) / 2048.0
+        acc_y = to_signed_16bit(buffer[10], buffer[11]) / 2048.0
+        acc_z = to_signed_16bit(buffer[12], buffer[13]) / 2048.0
+
+        velocity_x = to_signed_16bit(buffer[16], buffer[17]) / 16.4
+        velocity_y = to_signed_16bit(buffer[18], buffer[19]) / 16.4
+        velocity_z = to_signed_16bit(buffer[20], buffer[21]) / 16.4
+
+        temp = to_signed_16bit(buffer[14], buffer[15]) / 333.87 + 21.0
+
+        return [acc_x, acc_y, acc_z, velocity_x, velocity_y, velocity_z, temp]
 

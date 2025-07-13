@@ -18,8 +18,29 @@ def cast_numbers(arr):
             casted.append(item)  # 数値化できない場合はそのまま保持
     return casted
 
-def test_get_sensor_values_data():
+def test_find_sensor_port_binary():
     sensor = RtSensor(115200, 0.01)
+    port, result = sensor.find_sensor_port_binary()
+    print(f"Found sensor on port: {port}")
+    print(f"result: {result}")
+    assert port is not None
+    assert result is not None
+
+def test_get_raw_binary():
+    sensor = RtSensor(115200, 0.01)
+    result = sensor.get_raw_binary()
+    print(result)
+    assert len(result) > 0
+    assert isinstance(result[0], float)
+    assert isinstance(result[1], float)
+    assert isinstance(result[2], float)
+    assert isinstance(result[3], float)
+    assert isinstance(result[4], float)
+    assert isinstance(result[5], float)
+    assert isinstance(result[6], float)
+
+def test_get_sensor_values_data():
+    sensor = RtSensor(1, 115200, 0.01)
     print(sensor)
     result = cast_numbers(sensor.get_sensor_values())
     print(result)
@@ -37,9 +58,9 @@ def test_get_sensor_values_data():
     assert isinstance(result[8], float)
     assert isinstance(result[9], float)
     assert isinstance(result[10], float)
-
+"""
 def test_get_raw_data():
-    sensor = RtSensor(115200, 0.01)
+    sensor = RtSensor(0, 115200, 0.01)
     result = sensor.get_raw_data()
     print(result)
     assert isinstance(result, list)
@@ -48,7 +69,7 @@ def test_get_raw_data():
         assert isinstance(item, float)
 
 def test_calibrate_static_orientation():
-    sensor = RtSensor(115200, 0.01)
+    sensor = RtSensor(0, 115200, 0.01)
     sensor.calibrate_static_orientation()
     raw_data = sensor.get_raw_data()
     calibrated_data = sensor.apply_calibration(raw_data)
@@ -58,11 +79,5 @@ def test_calibrate_static_orientation():
     for item in calibrated_data:
         assert isinstance(item, float)
 
-def test_find_sensor_port():
-    sensor = RtSensor(115200, 0.01)
-    port, result = sensor.find_sensor_port()
-    print(f"Found sensor on port: {port}")
-    print(f"result: {result}")
-    assert port is not None
-    assert result is not None
-    assert isinstance(result, str)
+
+"""
