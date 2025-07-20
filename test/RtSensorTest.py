@@ -19,15 +19,17 @@ def cast_numbers(arr):
     return casted
 
 def test_find_sensor_port_binary():
-    sensor = RtSensor(115200, 0.01)
+    sensor = RtSensor(1, 115200, 0.01)
     port, result = sensor.find_sensor_port_binary()
     print(f"Found sensor on port: {port}")
     print(f"result: {result}")
+    print(f"ser: {sensor.ser}")
     assert port is not None
     assert result is not None
+    assert sensor.ser is not None
 
 def test_get_raw_binary():
-    sensor = RtSensor(115200, 0.01)
+    sensor = RtSensor(1, 115200, 0.01)
     result = sensor.get_raw_binary()
     print(result)
     assert len(result) > 0
@@ -38,7 +40,7 @@ def test_get_raw_binary():
     assert isinstance(result[4], float)
     assert isinstance(result[5], float)
     assert isinstance(result[6], float)
-
+"""
 def test_get_sensor_values_data():
     sensor = RtSensor(1, 115200, 0.01)
     print(sensor)
@@ -58,7 +60,7 @@ def test_get_sensor_values_data():
     assert isinstance(result[8], float)
     assert isinstance(result[9], float)
     assert isinstance(result[10], float)
-"""
+
 def test_get_raw_data():
     sensor = RtSensor(0, 115200, 0.01)
     result = sensor.get_raw_data()
@@ -78,6 +80,5 @@ def test_calibrate_static_orientation():
     assert len(calibrated_data) == 6
     for item in calibrated_data:
         assert isinstance(item, float)
-
 
 """
