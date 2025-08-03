@@ -24,7 +24,7 @@ MIN_PWM = -100             # Motor Driver HAT仕様（TB6612FNG）
 MAX_POWER = 120            # PWM範囲を有効活用（制限を緩和）
 PUNCH_POWER = 15           # 静止摩擦突破用（Motor Driver HAT用に調整）
 MACH_FACT = Decimal("0.8") # モーター補正係数（0.6→0.8に増加）
-MAX_ANGLE = Decimal("30.0")  # 転倒判定角度
+MAX_ANGLE = Decimal("45.0")  # 転倒判定角度
 CONTROL_INTERVAL = 0.004     # 制御周期 4ms（TB6612FNG高速応答用）
 CALIBRATION_SAMPLES = 100    # キャリブレーション回数
 
