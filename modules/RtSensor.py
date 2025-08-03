@@ -331,7 +331,7 @@ class RtSensor():
     async def get_complementary_angle_async(self, dt, cutoff_freq=0.04):
         """
         非同期版：シンプルな相補フィルタによる角度計算
-        X軸加速度とジャイロのみを使用（Z軸判定なし）
+        X軸加速度とジャイロのみを使用
         """
         if not hasattr(self, 'angle'):
             self.angle = 0.0
