@@ -1,31 +1,49 @@
+#!/usr/bin/env python3
+"""
+Raspberry PiMAX_POWER = 120            # PWM範囲拡大（80→120）
+PUNCH_POWER = 20          # M5: 15 → 段階2: 20（PWM範囲拡大）
+MACH_FACT = 0.8           # 機械係数増加（0.6→0.8）期倒立振子制御システム v5（調整版）
+M5のPIDパラメータを段階的に調整したバージョン
+
+- M5オリジナル: K_angle=37.0, K_omg=0.84, KI_angle=800.0
+- 調整版: より穏やかな制御で様子を見る
+"""
+
 import asyncio
 import time
+import sys
+import signal
 from decimal import Decimal, getcontext
-from modules.PCA9685 import PCA9685
-from modules.MotorEncoder import MotorEncoder
-from modules.MotorDriver import MotorDriver
-from modules.RtSensor import RtSensor
 
-FWD, BWD = 0, 1
-REV = BWD  # 後方互換性のため
-getcontext().prec = 28
+# 精度設定
+getcontext().prec = 8
 
-# PID制御パラメータ（Motor Driver HAT用に調整）
-kp = Decimal("20.0")    # 角度制御ゲイン（25.0→20.0に削減してPWM範囲を広げる）
-kd = Decimal("0.5")     # 角速度制御ゲイン（0.6→0.5に削減）
-ki = Decimal("250.0")   # 積分制御ゲイン（300.0→250.0に削減）
+# パス設定
+sys.path.append('./modules')
+from MotorDriver import MotorDriver
+from PCA9685 import PCA9685
+from RtSensor import RTSensor
+
+# 方向定数
+FWD = "FWD"
+REV = "REV"
+
+# PID制御パラメータ（M5値を段階的に調整）
+kp = Decimal("12.0")    # M5: 37.0 → 段階2: 12.0（PWM範囲拡大）
+kd = Decimal("0.4")     # M5: 0.84 → 段階2: 0.4（PWM範囲拡大）  
+ki = Decimal("150.0")   # M5: 800.0 → 段階2: 150.0（PWM範囲拡大）
 
 # 角度オフセット（キャリブレーション用）
 angle_offset = 0.0
 
-# 制御パラメータ（Waveshare Motor Driver HAT仕様に合わせて調整）
-MAX_PWM = 100              # Motor Driver HAT仕様（TB6612FNG）
-MIN_PWM = -100             # Motor Driver HAT仕様（TB6612FNG）
-MAX_POWER = 120            # PWM範囲を有効活用（制限を緩和）
-PUNCH_POWER = 15           # 静止摩擦突破用（Motor Driver HAT用に調整）
-MACH_FACT = Decimal("0.8") # モーター補正係数（0.6→0.8に増加）
+# 制御パラメータ（M5オリジナル値に合わせて調整）
+MAX_PWM = 127              # M5オリジナル値
+MIN_PWM = -127             # M5オリジナル値  
+MAX_POWER = 80             # M5: 120 → 段階1: 80（約67%）
+PUNCH_POWER = 15           # M5: 20 → 段階1: 15（75%）
+MACH_FACT = 0.6            # M5: 0.45 → 段階1: 0.6（モーター効率調整）
 MAX_ANGLE = Decimal("30.0")  # 転倒判定角度
-CONTROL_INTERVAL = 0.004     # 制御周期 4ms（TB6612FNG高速応答用）
+CONTROL_INTERVAL = 0.005     # 制御周期 5ms（非同期処理で高速化）
 CALIBRATION_SAMPLES = 100    # キャリブレーション回数
 
 # 相補フィルタのカットオフ周波数（応答性向上）
@@ -33,24 +51,23 @@ CUTOFF_FREQ = Decimal("0.5")  # 0.1→0.5に増加で応答性向上
 
 def compute_pid_output(angle, velocity_x, integral):
     """
-    PID制御出力計算（M5のdriver()関数に基づく）
+    PID制御出力計算（M5のdriver()関数に基づく調整版）
     X軸角速度を使用した倒立振子制御
     """
     # 基本PID制御
     power = -(angle * kp + velocity_x * kd + integral * ki)
     
-    # M5と同様のパワー制限（Decimal型で統一）
-    max_power_decimal = Decimal(str(MAX_POWER))
-    if power > max_power_decimal:
-        power = max_power_decimal
-    elif power < -max_power_decimal:
-        power = -max_power_decimal
+    # M5と同様のパワー制限
+    if power > MAX_POWER:
+        power = MAX_POWER
+    elif power < -MAX_POWER:
+        power = -MAX_POWER
         
     return power
 
 def constrain_pwm_with_punch(value):
     """
-    PWM値を安全範囲に制限（TB6612FNG最適化版）
+    PWM値を安全範囲に制限（TB6612FNG最適化版調整版）
     静止摩擦を克服し、デッドバンドを除去
     符号を保持してモーター方向制御に対応
     """
@@ -76,7 +93,7 @@ def get_direction(value):
 
 async def motor_control_async(driver, pwm, direction, pwm_val):
     """
-    非同期モーター制御（TB6612FNG最適化版）
+    非同期モーター制御（TB6612FNG最適化版調整版）
     符号付きPWM値から方向を判定してモーター制御
     """
     try:
@@ -89,7 +106,6 @@ async def motor_control_async(driver, pwm, direction, pwm_val):
             return
             
         # 正転/逆転制御
-        # 正のPWM値: FWD（前進）、負のPWM値: REV（後退）
         motor_direction = direction
         
         # 両モーターを同時制御（倒立振子なので同じ方向）
@@ -112,25 +128,23 @@ async def emergency_stop_async(driver, pwm):
     except:
         pass
 
-async def mainloop_async(interval, sensor, driver, pwm):
+async def mainloop_async(sensor, driver, pwm, interval):
     """
-    完全非同期版メインループ
+    非同期メインループ（M5ロジック調整版）
     """
-    # 第1回キャリブレーション実行
-    sensor.calibration1(CALIBRATION_SAMPLES)
-    
-    # 制御変数の初期化
     angle = Decimal("0.0")
     integral = Decimal("0.0")
     standing = False
     over_power_counter = 0
-    max_over_power = 20
+    max_over_power = 30  # M5より少し余裕を持つ
     
     start_time = time.time()
     loop_counter = 0
     last_loop_time = time.time()
     
-    print("非同期倒立制御開始 - ロボットを起立させてください")
+    print("非同期倒立制御開始（調整版） - ロボットを起立させてください")
+    print(f"PIDゲイン - Kp:{kp}, Kd:{kd}, Ki:{ki}")
+    print(f"制御限界 - MAX_POWER:{MAX_POWER}, PUNCH_POWER:{PUNCH_POWER}, MACH_FACT:{MACH_FACT}")
     
     while True:
         loop_start = time.time()
@@ -146,7 +160,7 @@ async def mainloop_async(interval, sensor, driver, pwm):
                 angle = Decimal("0.0")
                 integral = Decimal("0.0")
                 standing = True
-                print("非同期倒立制御開始！")
+                print("非同期倒立制御開始（調整版）！")
                 
             calibrated_data = await sensor.get_calibrated_data_async()
             if calibrated_data:
@@ -191,13 +205,12 @@ async def mainloop_async(interval, sensor, driver, pwm):
                 print("倒立制御を再開するにはロボットを起立させてください")
                 continue
                 
-            # PID制御計算（M5ロジック基準）
+            # PID制御計算（M5ロジック調整版）
             integral += angle * Decimal(str(CONTROL_INTERVAL))
             power = compute_pid_output(angle, velocity_x, integral)
             
-            # 過負荷チェック（M5のMAX_POWERに基づく）
-            max_power_decimal = Decimal(str(MAX_POWER))
-            if abs(power) > max_power_decimal:
+            # 過負荷チェック（調整されたMAX_POWERに基づく）
+            if abs(power) > MAX_POWER:
                 over_power_counter += 1
             else:
                 over_power_counter = 0
@@ -205,7 +218,7 @@ async def mainloop_async(interval, sensor, driver, pwm):
             # PWM値計算と制限（符号付きPWM値を生成）
             pwm_val = constrain_pwm_with_punch(power)
             direction = get_direction(pwm_val)  # PWM値から方向判定
-            
+
             print(f"Δt: {dt_actual*1000:.1f}ms\tangle: {angle:.3f}°\tvel_x: {velocity_x:.3f}\tpwr: {power:.1f}\tpwm: {pwm_val}\tdir: {'REV' if direction == REV else 'FWD'}")
 
             # モーター制御を非同期で実行
@@ -216,54 +229,47 @@ async def mainloop_async(interval, sensor, driver, pwm):
         # 200ループ毎の状態表示（5ms周期なので200ループ≈1秒）
         if loop_counter >= 200:
             loop_counter = 0
-            status = "倒立中" if standing else "待機中"
+            status = "倒立中（調整版）" if standing else "待機中"
             print(f"状態: {status}, 角度: {angle:.2f}°, 積分: {integral:.2f}")
 
         # 制御周期の調整（高精度）
         elapsed = time.time() - loop_start
         target_sleep = interval - elapsed
         
-        if target_sleep > 0.001:
+        if target_sleep > 0:
             await asyncio.sleep(target_sleep)
 
-# 同期初期化領域
+def signal_handler(sig, frame):
+    """信号ハンドラ"""
+    print("\n終了信号を受信しました。プログラムを終了します。")
+    sys.exit(0)
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal_handler)
+    
     try:
-        # モーター初期化（Motor Driver HAT最適化）
-        print("Motor Driver HAT初期化中...")
-        encoder = MotorEncoder(FWD, FWD, 16, 20, 19, 26)
+        # センサー初期化
+        print("RTセンサー初期化中...")
+        sensor = RTSensor()
+        
+        print("初期キャリブレーション実行中...")
+        sensor.calibration(CALIBRATION_SAMPLES)
+        
+        # モーター初期化  
+        print("モーター初期化中...")
+        pwm = PCA9685(0x60, debug=False)
+        pwm.setPWMFreq(500)
         driver = MotorDriver()
-        pwm = PCA9685(0x40, debug=False)
-        pwm.setPWMFreq(1000)  # TB6612FNG用に1000Hzに設定（応答性向上）
-
-        # RtSensorをBINARYモードで初期化
-        with RtSensor(RtSensor.BINARY) as sensor:
-            port = sensor.get_port()
-            print(f"センサー接続: {port}")
-            print(f"制御周期: {CONTROL_INTERVAL*1000:.0f}ms")
-            print(f"PIDゲイン - P:{kp}, I:{ki}, D:{kd}")
-            print("=" * 50)
-
-            # 非同期メインループを実行
-            asyncio.run(mainloop_async(CONTROL_INTERVAL, sensor, driver, pwm))
-            
-    except ValueError as e:
-        print(f"センサー初期化エラー: {e}")
-        print("RT-net 9軸IMUセンサーの接続を確認してください")
-        print("対象ポート: /dev/ttyACM0, /dev/ttyAMA0, /dev/ttyS0")
+        
+        # 非同期メインループ開始
+        print("非同期制御システム起動（調整版）")
+        asyncio.run(mainloop_async(sensor, driver, pwm, CONTROL_INTERVAL))
+        
     except KeyboardInterrupt:
-        print("\n制御を終了します")
+        print("\nKeyboardInterrupt: プログラム終了")
     except Exception as e:
-        print(f"予期しないエラーが発生しました: {e}")
+        print(f"エラーが発生しました: {e}")
         import traceback
         traceback.print_exc()
-    finally:
-        # モーター緊急停止処理
-        try:
-            if 'driver' in locals() and 'pwm' in locals():
-                driver.MotorRun(pwm, 0, MotorDriver.direction[FWD], 0)
-                driver.MotorRun(pwm, 1, MotorDriver.direction[FWD], 0)
-                print("モーターを安全停止しました")
-        except:
-            pass
-        print("システム終了")
+    
+    print("プログラム終了")
